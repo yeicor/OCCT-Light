@@ -25,14 +25,14 @@ jobs:
           build-essential cmake ninja-build \
           libgl-dev libglu1-mesa-dev \
           libx11-dev libxext-dev libxmu-dev libxi-dev \
-          libfreetype-dev
+          libfreetype-dev libfontconfig-dev
 
     - name: Cache OCCT build
       id: cache-occt
       uses: actions/cache@v4
       with:
         path: /tmp/occt-build
-        key: occt-8.0.0-p1-ubuntu-24.04-v2
+        key: occt-8.0.0-p1-ubuntu-24.04-v3
 
     - name: Build OCCT 8.0.0-p1
       if: steps.cache-occt.outputs.cache-hit != 'true'
