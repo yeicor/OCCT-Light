@@ -179,9 +179,9 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_graph_for_each_ref(const occtl_graph_t
 //==================================================================================================
 
 OCCTL_API occtl_status_t OCCTL_CALL occtl_graph_for_each_rep(const occtl_graph_t* const theGraph,
-                                                             const uint64_t theRepKindMask,
-                                                             const occtl_rep_visitor_t theVisitor,
-                                                             void* const               theUserData)
+                                                              const uint64_t theRepKindMask,
+                                                              const occtl_rep_visitor_t theVisitor,
+                                                              void* const               theUserData)
 {
   return OcctL::Core::Guard([&]() -> occtl_status_t {
     if (theVisitor == nullptr)
@@ -194,14 +194,88 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_graph_for_each_rep(const occtl_graph_t
       OcctL::Core::ErrorState::Current().Set(OCCTL_INVALID_ARGUMENT, "graph is NULL");
       return OCCTL_INVALID_ARGUMENT;
     }
-   // 8.0.0-p1: rep enumeration requires incStorage which is not publicly accessible;
-    // stub this function.
-    (void)theGraph;
-    (void)theRepKindMask;
-    (void)theVisitor;
-    (void)theUserData;
-
-
+    const BRepGraph& aGraph = theGraph->graph;
+    auto aInvokeRepVisitor = [&](const BRepGraph_RepId& theRepId) -> occtl_status_t {
+      const occtl_rep_kind_t aAbiKind = OcctL::Topo::ToAbiRepKind(theRepId.RepKind);
+      if (!(theRepKindMask & (1uLL << aAbiKind)))
+        return OCCTL_OK;
+      const occtl_rep_id_t anAbiId = OcctL::Topo::PackRepId(theRepId);
+      const occtl_status_t aSt     = theVisitor(anAbiId, theUserData);
+      if (aSt == OCCTL_CANCELLED)
+        return OCCTL_OK;
+      return aSt;
+    };
+    // Edges
+    {
+      const auto& aEdges = aGraph.Topo().Edges();
+      for (BRepGraph_EdgeId aId = aEdges.StartId(); aId < aEdges.EndId(); ++aId)
+      {
+        if (const BRepGraph_EdgeCurve3DRepId aCurveId = aEdges.Definition(aId).Curve3DRepId;
+            aCurveId.IsValid())
+        {
+          const occtl_status_t aSt = aInvokeRepVisitor(aCurveId);
+          if (aSt != OCCTL_OK)
+            return aSt;
+        }
+        if (const BRepGraph_EdgePolygon3DRepId aPolyId = aEdges.Definition(aId).Polygon3DRepId;
+            aPolyId.IsValid())
+        {
+          const occtl_status_t aSt = aInvokeRepVisitor(aPolyId);
+          if (aSt != OCCTL_OK)
+            return aSt;
+        }
+      }
+    }
+    // CoEdges
+    {
+      const auto& aCoEdges = aGraph.Topo().CoEdges();
+      for (BRepGraph_CoEdgeId aId = aCoEdges.StartId(); aId < aCoEdges.EndId(); ++aId)
+      {
+        if (const BRepGraph_CoEdgeCurve2DRepId aCurveId = aCoEdges.Definition(aId).Curve2DRepId;
+            aCurveId.IsValid())
+        {
+          const occtl_status_t aSt = aInvokeRepVisitor(aCurveId);
+          if (aSt != OCCTL_OK)
+            return aSt;
+        }
+        if (const BRepGraph_CoEdgePolygon2DRepId aPolyId = aCoEdges.Definition(aId).Polygon2DRepId;
+            aPolyId.IsValid())
+        {
+          const occtl_status_t aSt = aInvokeRepVisitor(aPolyId);
+          if (aSt != OCCTL_OK)
+            return aSt;
+        }
+        if (const BRepGraph_CoEdgePolygonOnTriRepId aPolyTriId =
+              aCoEdges.Definition(aId).PolygonOnTriRepId;
+            aPolyTriId.IsValid())
+        {
+          const occtl_status_t aSt = aInvokeRepVisitor(aPolyTriId);
+          if (aSt != OCCTL_OK)
+            return aSt;
+        }
+      }
+    }
+    // Faces
+    {
+      const auto& aFaces = aGraph.Topo().Faces();
+      for (BRepGraph_FaceId aId = aFaces.StartId(); aId < aFaces.EndId(); ++aId)
+      {
+        if (const BRepGraph_FaceSurfaceRepId aSurfId = aFaces.Definition(aId).SurfaceRepId;
+            aSurfId.IsValid())
+        {
+          const occtl_status_t aSt = aInvokeRepVisitor(aSurfId);
+          if (aSt != OCCTL_OK)
+            return aSt;
+        }
+        if (const BRepGraph_FaceTriangulationRepId aTriId = aFaces.Definition(aId).TriangulationRepId;
+            aTriId.IsValid())
+        {
+          const occtl_status_t aSt = aInvokeRepVisitor(aTriId);
+          if (aSt != OCCTL_OK)
+            return aSt;
+        }
+      }
+    }
     return OCCTL_OK;
   });
 }

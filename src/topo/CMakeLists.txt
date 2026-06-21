@@ -37,6 +37,7 @@ occtl_add_module(topo
     graph_compose.cxx
     graph_readgaps.cxx
     graph_inplace.cxx
+    DerivedStateOverrides.cxx
     history.cxx
   PUBLIC_HEADERS
     ${CMAKE_SOURCE_DIR}/include/occtl/occtl_topo.h

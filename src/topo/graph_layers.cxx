@@ -170,11 +170,7 @@ public:
       return;
     }
     occ::handle<OcctL_Topo_ColorLayer> aTarget =
-      theCopy.TargetGraph().LayerRegistry().FindLayer<OcctL_Topo_ColorLayer>();
-    if (aTarget.IsNull())
-    {
-      return;
-    }
+      theCopy.TargetGraph().LayerRegistry().Ensure<OcctL_Topo_ColorLayer>();
     for (NCollection_DataMap<BRepGraph_NodeId, Quantity_ColorRGBA>::Iterator anIter(myColors);
          anIter.More();
          anIter.Next())
@@ -306,11 +302,7 @@ public:
       return;
     }
     occ::handle<OcctL_Topo_NameLayer> aTarget =
-      theCopy.TargetGraph().LayerRegistry().FindLayer<OcctL_Topo_NameLayer>();
-    if (aTarget.IsNull())
-    {
-      return;
-    }
+      theCopy.TargetGraph().LayerRegistry().Ensure<OcctL_Topo_NameLayer>();
     for (NCollection_DataMap<BRepGraph_NodeId, TCollection_AsciiString>::Iterator anIter(myNames);
          anIter.More();
          anIter.Next())
@@ -456,11 +448,7 @@ public:
       return;
     }
     occ::handle<OcctL_Topo_MaterialLayer> aTarget =
-      theCopy.TargetGraph().LayerRegistry().FindLayer<OcctL_Topo_MaterialLayer>();
-    if (aTarget.IsNull())
-    {
-      return;
-    }
+      theCopy.TargetGraph().LayerRegistry().Ensure<OcctL_Topo_MaterialLayer>();
     for (NCollection_DataMap<BRepGraph_NodeId, MaterialRecord>::Iterator anIter(myMaterials);
          anIter.More();
          anIter.Next())
@@ -551,11 +539,7 @@ public:
       return;
     }
     occ::handle<OcctL_Topo_UnitsLayer> aTarget =
-      theCopy.TargetGraph().LayerRegistry().FindLayer<OcctL_Topo_UnitsLayer>();
-    if (aTarget.IsNull())
-    {
-      return;
-    }
+      theCopy.TargetGraph().LayerRegistry().Ensure<OcctL_Topo_UnitsLayer>();
     aTarget->SetUnits(myLengthUnitToMeter, myName);
   }
 
@@ -823,11 +807,7 @@ public:
   void CopyTo(const BRepGraph_CopyRemap& theCopy) const override
   {
     occ::handle<OcctL_Topo_MetadataLayer> aTarget =
-      theCopy.TargetGraph().LayerRegistry().FindLayer<OcctL_Topo_MetadataLayer>();
-    if (aTarget.IsNull())
-    {
-      return;
-    }
+      theCopy.TargetGraph().LayerRegistry().Ensure<OcctL_Topo_MetadataLayer>();
     for (NCollection_DataMap<
            BRepGraph_NodeId,
            NCollection_DataMap<TCollection_AsciiString, TCollection_AsciiString>>::Iterator
@@ -1036,11 +1016,7 @@ public:
       return;
     }
     occ::handle<OcctL_Topo_TagLayer> aTarget =
-      theCopy.TargetGraph().LayerRegistry().FindLayer<OcctL_Topo_TagLayer>();
-    if (aTarget.IsNull())
-    {
-      return;
-    }
+      theCopy.TargetGraph().LayerRegistry().Ensure<OcctL_Topo_TagLayer>();
     for (NCollection_DataMap<BRepGraph_NodeId,
                              NCollection_FlatMap<TCollection_AsciiString>>::Iterator anIter(myTags);
          anIter.More();
@@ -1224,11 +1200,7 @@ public:
       return;
     }
     occ::handle<OcctL_Topo_JointLayer> aTarget =
-      theCopy.TargetGraph().LayerRegistry().FindLayer<OcctL_Topo_JointLayer>();
-    if (aTarget.IsNull())
-    {
-      return;
-    }
+      theCopy.TargetGraph().LayerRegistry().Ensure<OcctL_Topo_JointLayer>();
     for (NCollection_FlatDataMap<uint64_t, JointRecord>::Iterator anIter(myJoints);
          anIter.More();
          anIter.Next())

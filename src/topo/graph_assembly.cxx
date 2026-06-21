@@ -97,21 +97,68 @@ occtl_status_t findUniqueOccurrenceRef(const occtl_graph_t* const   theGraph,
 }
 
 occtl_status_t linkProductToTopologyImpl(occtl_graph_t* const    theGraph,
-                                         const occtl_node_id_t   theProduct,
-                                         const occtl_node_id_t   theRoot,
-                                         const occtl_transform_t thePlacement,
-                                         occtl_node_id_t* const  theOutOccurrence)
+                                          const occtl_node_id_t   theProduct,
+                                          const occtl_node_id_t   theRoot,
+                                          const occtl_transform_t thePlacement,
+                                          occtl_node_id_t* const  theOutOccurrence)
 {
   if (theGraph == nullptr || theOutOccurrence == nullptr)
   {
     OcctL::Core::ErrorState::Current().Set(OCCTL_INVALID_ARGUMENT,
-                                           theGraph == nullptr ? "theGraph is NULL"
-                                                               : "theOutOccurrence is NULL");
+                                            theGraph == nullptr ? "theGraph is NULL"
+                                                                : "theOutOccurrence is NULL");
     return OCCTL_INVALID_ARGUMENT;
   }
   *theOutOccurrence = OCCTL_NODE_ID_INVALID;
 
-  return OCCTL_UNSUPPORTED;
+  if (const occtl_status_t aStatus = validateTransform(thePlacement, "thePlacement"))
+  {
+    return aStatus;
+  }
+
+  BRepGraph_ProductId aProductId;
+  const occtl_status_t aProductStatus = OcctL::Topo::ToTypedId(
+    theGraph, theProduct, BRepGraph_NodeId::Kind::Product, aProductId);
+  if (aProductStatus)
+  {
+    if (aProductStatus == OCCTL_INVALID_ARGUMENT)
+    {
+      OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND,
+                                              "theProduct is not a Product node");
+      return OCCTL_WRONG_KIND;
+    }
+    return aProductStatus;
+  }
+
+  const BRepGraph_NodeId aRootId = OcctL::Topo::UnpackNodeId(theRoot);
+  if (!aRootId.IsValid())
+  {
+    OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_FOUND,
+                                            "theRoot is invalid or removed");
+    return OCCTL_NOT_FOUND;
+  }
+
+  if (!BRepGraph_NodeId::IsTopologyKind(aRootId.NodeKind))
+  {
+    OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND,
+                                            "theRoot is not a topology node");
+    return OCCTL_WRONG_KIND;
+  }
+
+  const TopLoc_Location aLoc(OcctL::Geom::ToGpTrsf(thePlacement));
+  const int aNbOccBefore = theGraph->graph.Refs().Occurrences().Nb();
+  const BRepGraph_ProductId aNewProductId =
+    theGraph->graph.Editor().Products().Add(aRootId, aLoc);
+
+  if (!aNewProductId.IsValid())
+  {
+    OcctL::Core::ErrorState::Current().Set(OCCTL_ERROR, "linkProductToTopology failed");
+    return OCCTL_ERROR;
+  }
+
+  const BRepGraph_OccurrenceId aNewOccId(aNbOccBefore);
+  *theOutOccurrence = OcctL::Topo::PackNodeId(aNewOccId);
+  return OCCTL_OK;
 }
 
 occtl_status_t linkProductsImpl(occtl_graph_t* const    theGraph,

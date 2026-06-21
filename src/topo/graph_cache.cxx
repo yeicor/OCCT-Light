@@ -30,6 +30,7 @@
 #include <BRepBndLib.hxx>
 #include <BRepExtrema_DistShapeShape.hxx>
 #include <BRepGProp.hxx>
+#include <BRepTools.hxx>
 // BRepGraphAlgo/BRepGraphCheck are not available in OCCT 8.0.0-p1.
 // Guard them out for the prototype-1 build. Remove this #define and
 // the #ifndef/#endif guards once OCCT ships these modules.
@@ -639,11 +640,16 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_graph_bbox_get(occtl_graph_t* const   
       return aStatus;
     }
 
-#ifndef OCCTL_NO_BREPGRAPH_ALGO
-    const Bnd_Box aBox = BRepGraphAlgo_BndLib::AddCached(theGraph->graph,
-                                                         aNode,
-                                                         BRepGraphAlgo_BndLib::Precision::Standard,
-                                                         true);
+    const TopoDS_Shape aShape = theGraph->graph.Shapes().Shape(aNode);
+    if (aShape.IsNull())
+    {
+      OcctL::Core::ErrorState::Current().Set(OCCTL_GEOMETRY_INVALID,
+                                             "OCCT could not compute bounding box");
+      return OCCTL_GEOMETRY_INVALID;
+    }
+
+    Bnd_Box aBox;
+    BRepBndLib::Add(aShape, aBox);
     if (aBox.IsVoid())
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_GEOMETRY_INVALID,
@@ -656,12 +662,6 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_graph_bbox_get(occtl_graph_t* const   
     theOutBbox->min   = {aMin.X(), aMin.Y(), aMin.Z()};
     theOutBbox->max   = {aMax.X(), aMax.Y(), aMax.Z()};
     return OCCTL_OK;
-#else
-    (void)aNode;
-    OcctL::Core::ErrorState::Current().Set(OCCTL_UNSUPPORTED,
-                                           "BRepGraphAlgo_BndLib not available in this build");
-    return OCCTL_UNSUPPORTED;
-#endif
   });
 }
 
@@ -722,24 +722,30 @@ OCCTL_API occtl_status_t OCCTL_CALL
       return OCCTL_WRONG_KIND;
     }
 
-#ifndef OCCTL_NO_BREPGRAPH_ALGO
-    const BRepGraphAlgo_UVBounds::CachedData aData =
-      BRepGraphAlgo_UVBounds::AddCached(theGraph->graph, BRepGraph_FaceId::FromNodeId(aFace));
-    if (!isFiniteUvBounds(aData))
+    TopoDS_Face aFaceShape = TopoDS::Face(theGraph->graph.Shapes().Shape(aFace));
+    if (aFaceShape.IsNull())
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_GEOMETRY_INVALID,
                                              "OCCT could not compute Face UV bounds");
       return OCCTL_GEOMETRY_INVALID;
     }
 
-    fillUvBounds(aData, *theOutUvBounds);
+    double aUMin = 0.0, aUMax = 0.0, aVMin = 0.0, aVMax = 0.0;
+    BRepTools::UVBounds(aFaceShape, aUMin, aUMax, aVMin, aVMax);
+
+    if (!IsFiniteValue(aUMin) || !IsFiniteValue(aUMax) || !IsFiniteValue(aVMin) || !IsFiniteValue(aVMax))
+    {
+      OcctL::Core::ErrorState::Current().Set(OCCTL_GEOMETRY_INVALID,
+                                             "OCCT could not compute Face UV bounds");
+      return OCCTL_GEOMETRY_INVALID;
+    }
+
+    theOutUvBounds->u_min   = aUMin;
+    theOutUvBounds->u_max   = aUMax;
+    theOutUvBounds->v_min   = aVMin;
+    theOutUvBounds->v_max   = aVMax;
+    theOutUvBounds->is_natural_restriction = 0;
     return OCCTL_OK;
-#else
-    (void)aFace;
-    OcctL::Core::ErrorState::Current().Set(OCCTL_UNSUPPORTED,
-                                           "BRepGraphAlgo_UVBounds not available in this build");
-    return OCCTL_UNSUPPORTED;
-#endif
   });
 }
 

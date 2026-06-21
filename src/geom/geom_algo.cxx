@@ -22,7 +22,6 @@
 #include "../topo/TopoMath.hxx"
 #include "../compat/occt81/RepsCompat.hxx"
 
-// #include <GeomAPI_AirfoilNACA4.hxx>  // not available in OCCT 8.0.0-p1
 #include <GeomAPI_ExtremaCurveCurve.hxx>
 #include <GeomAPI_IntCS.hxx>
 #include <GeomAPI_IntSS.hxx>
@@ -260,12 +259,99 @@ OCCTL_API occtl_status_t OCCTL_CALL
       return OCCTL_INVALID_ARGUMENT;
     }
 
-// GeomAPI_AirfoilNACA4 is not available in OCCT 8.0.0-p1
-    (void)theInfo;
-    (void)theOutId;
-    OcctL::Core::ErrorState::Current().Set(OCCTL_UNSUPPORTED,
-                                             "NACA airfoil not available in OCCT 8.0.0-p1");
-    return OCCTL_UNSUPPORTED;
+OCC_CATCH_SIGNALS;
+
+    const double tol    = theInfo->tolerance;
+    const int    nPoints = static_cast<int>(theInfo->point_count) > 5 ? static_cast<int>(theInfo->point_count) : 50;
+
+    // NACA 4-digit airfoil profile coordinates (z-y plane, z = camber, y = thickness)
+    // The trailing edge is at x = chord_length, the leading edge at x = 0.
+    std::vector<gp_Pnt> aPts;
+    aPts.reserve(2ULL * nPoints + 2);
+
+    const double chord = theInfo->chord_length;
+    const double m     = theInfo->max_camber / chord;
+    const double p     = theInfo->camber_position;
+    const double t     = theInfo->thickness / chord;
+
+    auto compute_airfoil = [&](double xt) -> std::pair<double, double> {
+      double yt, zt;
+      if (p > 0.0001)
+      {
+        if (xt < p)
+        {
+          yt = m / (p * p) * (2.0 * p * xt - xt * xt);
+          zt = t / 0.2 * (0.2969 * std::sqrt(xt) - 0.1260 * xt - 0.3516 * xt * xt
+                           + 0.2843 * xt * xt * xt - 0.1015 * xt * xt * xt * xt);
+        }
+        else
+        {
+          const double xtp = xt - p;
+          yt = m / ((1.0 - p) * (1.0 - p)) * ((1.0 - 2.0 * p) + 2.0 * p * xt - xt * xt);
+          zt = t / 0.2 * (0.0915 * std::sqrt(xtp) - 0.7537 * xtp + 1.4286 * xtp * xtp
+                           - 0.6321 * xtp * xtp * xtp + 0.1015 * xtp * xtp * xtp * xtp);
+        }
+      }
+      else
+      {
+        zt = 0.0;
+        yt = t / 0.2 * (0.2969 * std::sqrt(xt) - 0.1260 * xt - 0.3516 * xt * xt
+                         + 0.2843 * xt * xt * xt - 0.1015 * xt * xt * xt * xt);
+      }
+      return {zt, yt};
+    };
+
+    // Upper surface: trailing edge (x=chord) to leading edge (x=0)
+    for (int i = nPoints; i >= 0; --i)
+    {
+      const double xt = static_cast<double>(i) / nPoints;
+      const double x  = xt * chord;
+      const auto [zc, yt] = compute_airfoil(xt);
+      aPts.emplace_back(x, zc + yt, 0.0);
+    }
+    // Lower surface: leading edge (x=0) to trailing edge (x=chord)
+    for (int i = 1; i <= nPoints; ++i)
+    {
+      const double xt = static_cast<double>(i) / nPoints;
+      const double x  = xt * chord;
+      const auto [zc, yt] = compute_airfoil(xt);
+      aPts.emplace_back(x, zc - yt, 0.0);
+    }
+
+    const int n = static_cast<int>(aPts.size());
+    NCollection_Array1<gp_Pnt> aCPoints(1, n);
+    for (int i = 0; i < n; ++i)
+      aCPoints.SetValue(i + 1, aPts[i]);
+
+    Handle(Geom_BSplineCurve) aBspCurve;
+    try
+    {
+      GeomAPI_PointsToBSpline anApprox(aCPoints,
+                                        Approx_Centripetal,
+                                        static_cast<int>(theInfo->degree_min),
+                                        static_cast<int>(theInfo->degree_max),
+                                        GeomAbs_C2,
+                                        tol);
+      if (!anApprox.IsDone())
+      {
+        OcctL::Core::ErrorState::Current().Set(
+          OCCTL_GEOMETRY_INVALID, "NACA airfoil BSpline approximation failed");
+        return OCCTL_GEOMETRY_INVALID;
+      }
+      aBspCurve = anApprox.Curve();
+    }
+    catch (const Standard_Failure&)
+    {
+      OcctL::Core::ErrorState::Current().Set(OCCTL_GEOMETRY_INVALID,
+                                              "NACA airfoil approximation threw");
+      return OCCTL_GEOMETRY_INVALID;
+    }
+
+    BRepGraph_EdgeCurve3DRepId aRepId =
+      OcctL::Compat::CreateCurve3DRep(theGraph->graph, aBspCurve);
+    *theOutId = OcctL::Topo::PackRepId(aRepId);
+
+    return OCCTL_OK;
   });
 }
 

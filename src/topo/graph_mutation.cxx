@@ -13,6 +13,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+#include "DerivedStateOverrides.hxx"
 #include "IdConvert.hxx"
 #include "TopoMath.hxx"
 
@@ -23,10 +24,14 @@
 
 #include "../geom/RepLookup.hxx"
 
+#include <BRep_Tool.hxx>
 #include <BRepBuilderAPI_MakeFace.hxx>
 #include <BRepBuilderAPI_MakePolygon.hxx>
+#include <BRepBuilderAPI_MakeWire.hxx>
 #include <BRepFilletAPI_MakeFillet2d.hxx>
 #include <BRepGProp.hxx>
+#include <BRepGraph_CacheDerivedState.hxx>
+#include <BRepGraph_CacheRegistry.hxx>
 #include <BRepGraph_EditorView.hxx>
 #include <BRepGraph_RefsIterator.hxx>
 #include <BRepGraph_ShapesView.hxx>
@@ -34,11 +39,13 @@
 #include <BRepGraph_WireExplorer.hxx>
 #include <BRepOffsetAPI_MakeOffset.hxx>
 
+#include <Geom_Line.hxx>
 #include <GeomAbs_JoinType.hxx>
 #include <NCollection_Array1.hxx>
 #include <NCollection_DynamicArray.hxx>
 #include <NCollection_IndexedMap.hxx>
 #include <NCollection_LinearVector.hxx>
+#include <set>
 #include <ChFi2d.hxx>
 #include <ChFi2d_ConstructionError.hxx>
 #include <GProp_GProps.hxx>
@@ -120,8 +127,8 @@ bool endpointsMatch(const BRepGraph_VertexId theIdA,
 }
 
 bool tryAppendEdge(NCollection_LinearVector<EdgeWireRecord>& theEdges,
-                   WireBuildRecord&                          theWire,
-                   const double                              theTolerance)
+                    WireBuildRecord&                          theWire,
+                    const double                              theTolerance)
 {
   for (EdgeWireRecord& anEdge : theEdges)
   {
@@ -672,6 +679,18 @@ OCCTL_API occtl_status_t OCCTL_CALL
     {
       aCurve = OcctL::Geom::CurveFromRep(theGraph, theInfo->curve);
     }
+    else
+    {
+      const TopoDS_Shape aStartShape = theGraph->graph.Shapes().Shape(BRepGraph_NodeId(aStart));
+      const TopoDS_Shape aEndShape   = theGraph->graph.Shapes().Shape(BRepGraph_NodeId(anEnd));
+      if (!aStartShape.IsNull() && aStartShape.ShapeType() == TopAbs_VERTEX
+          && !aEndShape.IsNull() && aEndShape.ShapeType() == TopAbs_VERTEX)
+      {
+        const gp_Pnt aStartPnt = BRep_Tool::Pnt(TopoDS::Vertex(aStartShape));
+        const gp_Pnt aEndPnt   = BRep_Tool::Pnt(TopoDS::Vertex(aEndShape));
+        aCurve = new Geom_Line(aStartPnt, gp_Vec(aStartPnt, aEndPnt));
+      }
+    }
 
     const BRepGraph_EdgeId anEdgeId = theGraph->graph.Editor().Edges().Add(aStart,
                                                                            anEnd,
@@ -714,18 +733,93 @@ OCCTL_API occtl_status_t OCCTL_CALL
       return OCCTL_INVALID_ARGUMENT;
     }
 
-    if (theInfo->edge_count == 0 && theInfo->edges != nullptr)
+   if (theInfo->edge_count == 0 && theInfo->edges != nullptr)
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_INVALID_ARGUMENT,
                                              "edges is non-NULL when edge_count == 0");
       return OCCTL_INVALID_ARGUMENT;
     }
 
-  OcctL::Core::ErrorState::Current().Set(
-     OCCTL_UNSUPPORTED,
-     "occtl_topo_make_wire: Wires().Add() API changed in OCCT 8.0.0-p1 to require CoEdgeIds; "
-     "wire creation from edge pairs is not yet implemented");
-   return OCCTL_UNSUPPORTED;
+     // Build the TopoDS_Wire shape for the Shapes() view.
+      BRepBuilderAPI_MakeWire aWireMaker;
+      for (int anI = 0; anI < static_cast<int>(theInfo->edge_count); ++anI)
+      {
+        const occtl_oriented_node_t& anOrientedEdge = theInfo->edges[anI];
+        BRepGraph_EdgeId aEdgeId;
+        if (const occtl_status_t aSt = OcctL::Topo::ToTypedId(theGraph,
+                                                               anOrientedEdge.id,
+                                                               BRepGraph_NodeId::Kind::Edge,
+                                                               aEdgeId))
+        {
+          return aSt;
+        }
+        TopoDS_Edge anEdge = TopoDS::Edge(theGraph->graph.Shapes().Shape(BRepGraph_NodeId(aEdgeId)));
+        TopAbs_Orientation anOcctOri = OcctL::Topo::ToOcctOrientation(anOrientedEdge.orientation);
+        anEdge.Orientation(anOcctOri);
+        aWireMaker.Add(anEdge);
+      }
+     aWireMaker.Build();
+     if (!aWireMaker.IsDone())
+     {
+       OcctL::Core::ErrorState::Current().Set(OCCTL_TOPOLOGY_INVALID,
+                                              "BRepBuilderAPI_MakeWire failed for wire assembly");
+       return OCCTL_TOPOLOGY_INVALID;
+     }
+
+     // Register the wire shape in the Shapes view.
+     BRepGraph::ShapesView::Options anOpts;
+     anOpts.CreateAutoProduct = false;
+     const BRepGraph::ShapesView::Result aRes = theGraph->graph.Shapes().Add(aWireMaker.Wire(), anOpts);
+    if (!aRes.IsOk())
+    {
+      OcctL::Core::ErrorState::Current().Set(
+        OCCTL_TOPOLOGY_INVALID,
+        "Shapes().Add() failed for wire shape ingestion");
+      return OCCTL_TOPOLOGY_INVALID;
+    }
+
+    *theOutWire = OcctL::Topo::PackNodeId(aRes.TopologyRoot);
+
+     bool aIsClosed = false;
+     if (theInfo->edge_count >= 2)
+     {
+       BRepGraph_VertexId aFirstStart;
+       BRepGraph_VertexId aPrevEnd;
+       bool               aHasFirst = false;
+       bool               aChainOk  = true;
+       for (int aI = 0; aI < static_cast<int>(theInfo->edge_count) && aChainOk; ++aI)
+       {
+         const occtl_oriented_node_t& anOrientedEdge = theInfo->edges[aI];
+         const BRepGraph_NodeId aNodeId = OcctL::Topo::UnpackNodeId(anOrientedEdge.id);
+         BRepGraph_EdgeId aE(aNodeId);
+         const BRepGraphInc::EdgeDef& aEDef = theGraph->graph.Topo().Edges().Definition(aE);
+         TopAbs_Orientation aO = OcctL::Topo::ToOcctOrientation(anOrientedEdge.orientation);
+         BRepGraph_VertexRefId aSR =
+           (aO == TopAbs_REVERSED) ? aEDef.EndVertexRefId : aEDef.StartVertexRefId;
+         BRepGraph_VertexRefId aER =
+           (aO == TopAbs_REVERSED) ? aEDef.StartVertexRefId : aEDef.EndVertexRefId;
+         const BRepGraphInc::VertexRef& aSRef = theGraph->graph.Refs().Vertices().Entry(aSR);
+         const BRepGraphInc::VertexRef& aERef = theGraph->graph.Refs().Vertices().Entry(aER);
+        BRepGraph_VertexId aStart = aSRef.ChildVertexId;
+        BRepGraph_VertexId aEnd     = aERef.ChildVertexId;
+        if (!aHasFirst)
+        {
+          aFirstStart = aStart;
+          aHasFirst   = true;
+        }
+        else if (aStart != aPrevEnd)
+        {
+          aChainOk = false;
+        }
+        aPrevEnd = aEnd;
+      }
+      aIsClosed = aHasFirst && aChainOk && aPrevEnd == aFirstStart;
+    }
+
+    OcctL::Topo::DerivedState::SetWireClosedOverride(
+        &theGraph->graph, aRes.TopologyRoot.Index, aIsClosed);
+
+    return OCCTL_OK;
   });
 }
 
@@ -805,24 +899,27 @@ OCCTL_API occtl_status_t OCCTL_CALL
       }
 
       const BRepGraph_VertexRefId aStartRef =
-        BRepGraph_Tool::Edge::StartVertexId(theGraph->graph, anEdgeId);
-      const BRepGraph_VertexRefId anEndRef =
-        BRepGraph_Tool::Edge::EndVertexId(theGraph->graph, anEdgeId);
-      if (!aStartRef.IsValid() || !anEndRef.IsValid())
-      {
-        OcctL::Core::ErrorState::Current().Set(OCCTL_ERROR, "edge has invalid endpoint vertex");
-        return OCCTL_ERROR;
-      }
+         BRepGraph_Tool::Edge::StartVertexId(theGraph->graph, anEdgeId);
+       const BRepGraph_VertexRefId anEndRef =
+         BRepGraph_Tool::Edge::EndVertexId(theGraph->graph, anEdgeId);
+       if (!aStartRef.IsValid() || !anEndRef.IsValid())
+       {
+         OcctL::Core::ErrorState::Current().Set(OCCTL_ERROR, "edge has invalid endpoint vertex");
+         return OCCTL_ERROR;
+       }
+
+       const BRepGraph_VertexId aStartChild = theGraph->graph.Refs().Vertices().Entry(aStartRef).ChildVertexId;
+       const BRepGraph_VertexId anEndChild  = theGraph->graph.Refs().Vertices().Entry(anEndRef).ChildVertexId;
 
 EdgeWireRecord aRecord;
-       aRecord.EdgeId        = anEdgeId;
-       aRecord.AbiId         = theOptions->edges[anI];
-       aRecord.StartId       = BRepGraph_VertexId(aStartRef.Index);
-       aRecord.EndId         = BRepGraph_VertexId(anEndRef.Index);
-       aRecord.StartPoint    = BRepGraph_Tool::Vertex::Pnt(theGraph->graph, aStartRef);
-       aRecord.EndPoint      = BRepGraph_Tool::Vertex::Pnt(theGraph->graph, anEndRef);
-       aRecord.Used          = false;
-       anEdges.Append(aRecord);
+        aRecord.EdgeId        = anEdgeId;
+        aRecord.AbiId         = theOptions->edges[anI];
+        aRecord.StartId       = aStartChild;
+        aRecord.EndId         = anEndChild;
+        aRecord.StartPoint    = BRepGraph_Tool::Vertex::Pnt(theGraph->graph, aStartRef);
+        aRecord.EndPoint      = BRepGraph_Tool::Vertex::Pnt(theGraph->graph, anEndRef);
+        aRecord.Used          = false;
+        anEdges.Append(aRecord);
     }
 
     NCollection_LinearVector<WireBuildRecord> aWires;
@@ -866,10 +963,60 @@ EdgeWireRecord aRecord;
       aWires.Append(std::move(aWire));
     }
 
-   OcctL::Core::ErrorState::Current().Set(
-       OCCTL_UNSUPPORTED,
-       "occtl_topo_edges_to_wires: Wires().Add() API changed in OCCT 8.0.0-p1 to require CoEdgeIds");
-    return OCCTL_UNSUPPORTED;
+ *theOutCount = aWires.Size();
+
+     if (theOutWires == nullptr)
+     {
+       return OCCTL_OK;
+     }
+
+    if (theCap < aWires.Size())
+    {
+      OcctL::Core::ErrorState::Current().Set(OCCTL_BUFFER_TOO_SMALL,
+                                              "output buffer capacity is insufficient");
+      return OCCTL_BUFFER_TOO_SMALL;
+    }
+
+   if (theOutWires)
+     {
+       size_t aWireIdx = 0;
+       for (const WireBuildRecord& aWireRec : aWires)
+        {
+          BRepBuilderAPI_MakeWire aWireMaker;
+          for (int aI = 0; aI < static_cast<int>(aWireRec.Edges.Size()); ++aI)
+          {
+            const occtl_oriented_node_t& aON = aWireRec.Edges(aI);
+            BRepGraph_EdgeId aEdgeId;
+            if (const occtl_status_t aSt = OcctL::Topo::ToTypedId(theGraph, aON.id,
+                                                                   BRepGraph_NodeId::Kind::Edge, aEdgeId))
+            {
+              return aSt;
+            }
+            TopoDS_Edge anEdge = TopoDS::Edge(theGraph->graph.Shapes().Shape(BRepGraph_NodeId(aEdgeId)));
+            TopAbs_Orientation aO = OcctL::Topo::ToOcctOrientation(aON.orientation);
+            anEdge.Orientation(aO);
+            aWireMaker.Add(anEdge);
+          }
+          aWireMaker.Build();
+          if (!aWireMaker.IsDone())
+          {
+            continue;
+          }
+          BRepGraph::ShapesView::Options aSOpts;
+          aSOpts.CreateAutoProduct = false;
+          const BRepGraph::ShapesView::Result aSRes =
+            theGraph->graph.Shapes().Add(aWireMaker.Wire(), aSOpts);
+          OcctL::Topo::DerivedState::SetWireClosedOverride(
+              &theGraph->graph, aSRes.TopologyRoot.Index, aWireRec.Closed);
+          if (aSRes.IsOk())
+          {
+            theOutWires[aWireIdx] = OcctL::Topo::PackNodeId(aSRes.TopologyRoot);
+          }
+          ++aWireIdx;
+        }
+    }
+
+    return OCCTL_OK;
   });
 }
 
@@ -1026,11 +1173,34 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_topo_wire_fix_degenerate(
       return aStatus;
     }
 
-    OcctL::Core::ErrorState::Current().Set(
-        OCCTL_UNSUPPORTED,
-        "occtl_topo_wire_fix_degenerate: CoEdgeRef/RefsCoEdgeOfWire/SetIsClosed APIs removed in "
-        "OCCT 8.0.0-p1");
-    return OCCTL_UNSUPPORTED;
+   const BRepGraphInc::WireRelations& aWireRel = theGraph->graph.Topo().Wires().Relations(aWireId);
+
+    std::set<int> aToRemoveIndices;
+    for (int aI = 0; aI < static_cast<int>(aWireRel.CoEdgeIds.Size()); ++aI)
+    {
+      const BRepGraph_CoEdgeId aCE = aWireRel.CoEdgeIds(aI);
+      const BRepGraph_EdgeId   aE  = BRepGraph_Tool::CoEdge::EdgeOf(theGraph->graph, aCE);
+      const std::pair<double,double> aRange = BRepGraph_Tool::Edge::Range(theGraph->graph, aE);
+      double aLen = std::abs(aRange.second - aRange.first);
+      if (aLen < theOptions->min_length)
+      {
+        aToRemoveIndices.insert(aI);
+      }
+    }
+
+    *theOutRemoved = aToRemoveIndices.size();
+
+    for (int aToRemoveIdx : aToRemoveIndices)
+    {
+      const BRepGraph_CoEdgeId aCE = aWireRel.CoEdgeIds(aToRemoveIdx);
+      theGraph->graph.Editor().Wires().RemoveCoEdge(aWireId, aCE);
+    }
+
+   const int aRemainingCoedges = static_cast<int>(aWireRel.CoEdgeIds.Size()) - *theOutRemoved;
+    OcctL::Topo::DerivedState::SetWireClosedOverride(
+        &theGraph->graph, aWireId.Index, aRemainingCoedges >= 2);
+
+    return OCCTL_OK;
   });
 }
 

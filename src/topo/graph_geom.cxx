@@ -13,12 +13,18 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+#include "DerivedStateOverrides.hxx"
 #include "IdConvert.hxx"
 #include "TopoMath.hxx"
 
+#include <BRepGraph_CacheDerivedState.hxx>
+#include <BRepGraph_CacheRegistry.hxx>
 #include <BRepGraph_MeshView.hxx>
+#include <BRepGraph_RefsView.hxx>
 #include <BRepGraph_ShapesView.hxx>
 #include <BRepGraph_Tool.hxx>
+#include <BRepGraphInc_Definition.hxx>
+#include <BRepGraphInc_Reference.hxx>
 #include <BRep_Tool.hxx>
 #include <TopoDS.hxx>
 #include <TopoDS_Edge.hxx>
@@ -438,7 +444,16 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_topo_face_outer_wire(const occtl_graph
       return aStatus;
     }
 
-    const BRepGraph_WireId aWireId = BRepGraph_Tool::Face::OuterWire(theGraph->graph, aFaceId);
+    const BRepGraphInc::FaceRelations& aFaceRel = theGraph->graph.Topo().Faces().Relations(aFaceId);
+    if (aFaceRel.WireRefIds.IsEmpty())
+    {
+      OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_FOUND, "face has no outer wire");
+      return OCCTL_NOT_FOUND;
+    }
+
+    const BRepGraph_WireRefId aFirstWireRef = aFaceRel.WireRefIds.Value(0);
+    const BRepGraphInc::WireRef& aWireRef = theGraph->graph.Refs().Wires().Entry(aFirstWireRef);
+    const BRepGraph_WireId       aWireId  = aWireRef.ChildWireId;
     if (!aWireId.IsValid())
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_FOUND, "face has no outer wire");
@@ -543,6 +558,16 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_topo_wire_is_closed(const occtl_graph_
       return aStatus;
     }
 
+    const auto* aOverrides = OcctL::Topo::DerivedState::GetWireClosedOverrides(&theGraph->graph);
+    if (aOverrides)
+    {
+      const auto aIt = aOverrides->find(aWireId.Index);
+      if (aIt != aOverrides->end())
+      {
+        *theOutFlag = aIt->second ? 1 : 0;
+        return OCCTL_OK;
+      }
+    }
     *theOutFlag = BRepGraph_Tool::Wire::IsClosed(theGraph->graph, aWireId) ? 1 : 0;
     return OCCTL_OK;
   });
@@ -750,7 +775,31 @@ OCCTL_API occtl_status_t OCCTL_CALL
       return aStatus;
     }
 
-    *theOutFlag = false ? 1 : 0;
+    // Check user override first (set via occtl_topo_set_edge_same_parameter)
+    const auto& aGraph = theGraph->graph;
+    const auto* aOverrides = OcctL::Topo::DerivedState::GetSameParamOverrides(&aGraph);
+    if (aOverrides && aOverrides->count(anEdgeId.Index))
+    {
+      *theOutFlag = aOverrides->at(anEdgeId.Index) ? 1 : 0;
+      return OCCTL_OK;
+    }
+
+    // Compute from coedges: edge has SameParameter if ALL its coedges do
+    const NCollection_LinearVector<BRepGraph_CoEdgeId>& aCoEdges =
+        aGraph.Topo().Edges().CoEdges(anEdgeId);
+    bool aResult = true;
+    const occ::handle<BRepGraph_CacheDerivedState> aCache =
+        const_cast<BRepGraph&>(aGraph).CacheRegistry().Ensure<BRepGraph_CacheDerivedState>();
+    for (int aCoI = 0; aCoI < static_cast<int>(aCoEdges.Size()); ++aCoI)
+    {
+      const BRepGraph_CoEdgeId& aCoEdgeId = aCoEdges.Value(static_cast<size_t>(aCoI));
+      if (!aCache->SameParameter(aCoEdgeId))
+      {
+        aResult = false;
+        break;
+      }
+    }
+    *theOutFlag = aResult ? 1 : 0;
     return OCCTL_OK;
   });
 }
@@ -775,7 +824,31 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_topo_edge_same_range(const occtl_graph
       return aStatus;
     }
 
-    *theOutFlag = false ? 1 : 0;
+    // Check user override first
+    const auto& aGraph = theGraph->graph;
+    const auto* aOverrides = OcctL::Topo::DerivedState::GetSameRangeOverrides(&aGraph);
+    if (aOverrides && aOverrides->count(anEdgeId.Index))
+    {
+      *theOutFlag = aOverrides->at(anEdgeId.Index) ? 1 : 0;
+      return OCCTL_OK;
+    }
+
+    // Compute from coedges
+    const NCollection_LinearVector<BRepGraph_CoEdgeId>& aCoEdges =
+        aGraph.Topo().Edges().CoEdges(anEdgeId);
+    bool aResult = true;
+    const occ::handle<BRepGraph_CacheDerivedState> aCache =
+        const_cast<BRepGraph&>(aGraph).CacheRegistry().Ensure<BRepGraph_CacheDerivedState>();
+    for (int aCoI = 0; aCoI < static_cast<int>(aCoEdges.Size()); ++aCoI)
+    {
+      const BRepGraph_CoEdgeId& aCoEdgeId = aCoEdges.Value(static_cast<size_t>(aCoI));
+      if (!aCache->SameRange(aCoEdgeId))
+      {
+        aResult = false;
+        break;
+      }
+    }
+    *theOutFlag = aResult ? 1 : 0;
     return OCCTL_OK;
   });
 }

@@ -46,6 +46,7 @@
 #include <Precision.hxx>
 #include <TopoDS.hxx>
 #include <TopoDS_Compound.hxx>
+#include <TopoDS_Edge.hxx>
 #include <TopoDS_Face.hxx>
 #include <TopoDS_Shape.hxx>
 
@@ -280,28 +281,50 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_mesh_generate(occtl_graph_t* const    
     }
 
     // Push triangulation back onto each graph face that was meshed.
-    // BRepMesh_IncrementalMesh stores triangulation on the TShape of each
-    // face in the meshed shape.  Since ShapesView reconstructs faces from
-    // the same TShapes, the triangulation is visible through
-    // BRep_Tool::Triangulation(Shape(faceId), ...).
-    const auto& topo = graph->graph.Topo();
-    for (auto fid = topo.Faces().StartId(); fid < topo.Faces().EndId(); ++fid)
-    {
-      const TopoDS_Shape aFaceShape = graph->graph.Shapes().Shape(fid);
-      if (aFaceShape.IsNull())
-      {
-        continue;
-      }
-      TopLoc_Location                          aLoc;
-      const occ::handle<Poly_Triangulation>& aTri =
-        BRep_Tool::Triangulation(TopoDS::Face(aFaceShape), aLoc);
-      if (aTri.IsNull())
-      {
-        continue;
-      }
-      graph->graph.Editor().Faces().SetPersistentTriangulation(fid, aTri);
-      graph->graph.Mesh().Editor().Faces().SetCachedTriangulation(fid, aTri);
-    }
+     // BRepMesh_IncrementalMesh stores triangulation on the TShape of each
+     // face in the meshed shape.  Since ShapesView reconstructs faces from
+     // the same TShapes, the triangulation is visible through
+     // BRep_Tool::Triangulation(Shape(faceId), ...).
+     const auto& topo = graph->graph.Topo();
+     for (auto fid = topo.Faces().StartId(); fid < topo.Faces().EndId(); ++fid)
+     {
+       const TopoDS_Shape aFaceShape = graph->graph.Shapes().Shape(fid);
+       if (aFaceShape.IsNull())
+       {
+         continue;
+       }
+       TopLoc_Location                          aLoc;
+       const occ::handle<Poly_Triangulation>& aTri =
+         BRep_Tool::Triangulation(TopoDS::Face(aFaceShape), aLoc);
+       if (aTri.IsNull())
+       {
+         continue;
+       }
+       graph->graph.Editor().Faces().SetPersistentTriangulation(fid, aTri);
+       graph->graph.Mesh().Editor().Faces().SetCachedTriangulation(fid, aTri);
+
+       // Create polygon-on-triangulation for each coedge of this face.
+       for (auto cid = topo.CoEdges().StartId(); cid < topo.CoEdges().EndId(); ++cid)
+       {
+         const auto& aCoEdgeDef = topo.CoEdges().Definition(cid);
+         if (aCoEdgeDef.FaceId != fid)
+         {
+           continue;
+         }
+         const BRepGraph_EdgeId aEdgeId = aCoEdgeDef.ChildEdgeId;
+         const TopoDS_Edge      aEdge   = TopoDS::Edge(graph->graph.Shapes().Shape(aEdgeId));
+         if (aEdge.IsNull())
+         {
+           continue;
+         }
+         occ::handle<Poly_PolygonOnTriangulation> aPolyOnTri =
+           BRep_Tool::PolygonOnTriangulation(aEdge, aTri, aLoc);
+         if (!aPolyOnTri.IsNull())
+         {
+           graph->graph.Mesh().Editor().CoEdges().AppendCachedPolygonOnTri(cid, aPolyOnTri);
+         }
+       }
+     }
 
     return OCCTL_OK;
   });

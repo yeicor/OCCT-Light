@@ -24,6 +24,7 @@
 #include <BRepAlgoAPI_Common.hxx>
 #include <BRepAlgoAPI_Section.hxx>
 #include <BRepBuilderAPI_MakeVertex.hxx>
+#include <BRepClass3d_SolidClassifier.hxx>
 #include <BRepExtrema_DistShapeShape.hxx>
 // BRepGraphAlgo/BRepGraphCheck are not available in OCCT 8.0.0-p1.
 // Guard them out for the prototype-1 build. Remove this #define and
@@ -781,10 +782,10 @@ bool sameFaceByProjection(const TopoDS_Face& theFaceA,
 }
 
 occtl_status_t classifySolidPoint(const occtl_graph_t* const      theGraph,
-                                  const occtl_node_id_t           theSolid,
-                                  const occtl_point3_t            thePoint,
-                                  const double                    theTolerance,
-                                  occtl_topo_point_class_t* const theOutClass)
+                                   const occtl_node_id_t           theSolid,
+                                   const occtl_point3_t            thePoint,
+                                   const double                    theTolerance,
+                                   occtl_topo_point_class_t* const theOutClass)
 {
   if (theTolerance < 0.0)
   {
@@ -799,17 +800,19 @@ occtl_status_t classifySolidPoint(const occtl_graph_t* const      theGraph,
     return aStatus;
   }
 
-#ifndef OCCTL_NO_BREPGRAPH_ALGO
-  BRepGraphAlgo_SolidClassifier aClassifier(theGraph->graph, aSolidId);
-  aClassifier.Perform(OcctL::Geom::ToGp(thePoint), theTolerance);
-  *theOutClass = toPointClass(aClassifier.State());
+  const TopoDS_Shape aSolidShape = theGraph->graph.Shapes().Shape(BRepGraph_NodeId(aSolidId));
+  if (aSolidShape.IsNull())
+  {
+    OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_FOUND, "solid shape is null");
+    return OCCTL_NOT_FOUND;
+  }
+
+  const gp_Pnt aQueryPoint(OcctL::Geom::ToGp(thePoint));
+
+  BRepClass3d_SolidClassifier aSC(aSolidShape, aQueryPoint, theTolerance);
+  aSC.Perform(aQueryPoint, theTolerance);
+  *theOutClass = toPointClass(aSC.State());
   return OCCTL_OK;
-#else
-  (void)aSolidId;
-  OcctL::Core::ErrorState::Current().Set(OCCTL_UNSUPPORTED,
-                                         "BRepGraphAlgo_SolidClassifier not available in this build");
-  return OCCTL_UNSUPPORTED;
-#endif
 }
 
 } // anonymous namespace

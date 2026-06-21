@@ -16,6 +16,7 @@
 #ifndef OCCTL_GEOM_REPLOOKUP_HXX
 #define OCCTL_GEOM_REPLOOKUP_HXX
 
+#include "../compat/occt81/RepsCompat.hxx"
 #include "../core/ErrorState.hxx"
 #include "../topo/GraphHandle.hxx"
 #include "../topo/TopoMath.hxx"
@@ -84,13 +85,17 @@ inline occ::handle<Geom_Curve> CurveFromRep(const occtl_graph_t* theGraph, occtl
     OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND, "rep id is not a Curve3D");
     return occ::handle<Geom_Curve>();
   }
-  BRepGraph_EdgeId aEdgeId = FindEdgeByCurve3DRep(theGraph->graph.Topo(), aRawId.Index);
-  if (!aEdgeId.IsValid())
-  {
-    OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_FOUND, "no edge owns this curve rep");
-    return occ::handle<Geom_Curve>();
+  auto& registry = OcctL::Compat::Curve3DRegistryInstance();
+  auto* entry = registry.FindByIndex(aRawId.Index);
+  if (entry) {
+    return entry->Curve;
   }
-  return theGraph->graph.Topo().Edges().Curve3D(aEdgeId);
+  BRepGraph_EdgeId aEdgeId = FindEdgeByCurve3DRep(theGraph->graph.Topo(), aRawId.Index);
+  if (aEdgeId.IsValid()) {
+    return theGraph->graph.Topo().Edges().Curve3D(aEdgeId);
+  }
+  OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_FOUND, "no curve owns this rep");
+  return occ::handle<Geom_Curve>();
 }
 
 inline occ::handle<Geom_Surface> SurfaceFromRep(const occtl_graph_t* theGraph, occtl_rep_id_t theId)
@@ -128,13 +133,17 @@ inline occ::handle<Geom2d_Curve> Curve2DFromRep(const occtl_graph_t* theGraph, o
     OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND, "rep id is not a Curve2D");
     return occ::handle<Geom2d_Curve>();
   }
-  BRepGraph_CoEdgeId aCoEdgeId = FindCoEdgeByCurve2DRep(theGraph->graph.Topo(), aRawId.Index);
-  if (!aCoEdgeId.IsValid())
-  {
-    OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_FOUND, "no coedge owns this curve2d rep");
-    return occ::handle<Geom2d_Curve>();
+  auto& registry = OcctL::Compat::Curve2DRegistryInstance();
+  auto* entry = registry.FindByIndex(aRawId.Index);
+  if (entry) {
+    return entry->Curve;
   }
-  return theGraph->graph.Topo().CoEdges().Curve2D(aCoEdgeId);
+  BRepGraph_CoEdgeId aCoEdgeId = FindCoEdgeByCurve2DRep(theGraph->graph.Topo(), aRawId.Index);
+  if (aCoEdgeId.IsValid()) {
+    return theGraph->graph.Topo().CoEdges().Curve2D(aCoEdgeId);
+  }
+  OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_FOUND, "no curve2d owns this rep");
+  return occ::handle<Geom2d_Curve>();
 }
 
 //! Direct lookup overloads for typed rep IDs (no ABI packing).
@@ -142,6 +151,11 @@ inline occ::handle<Geom2d_Curve> Curve2DFromRep(const occtl_graph_t* theGraph, o
 inline occ::handle<Geom_Curve>
 CurveFromRep(const BRepGraph& theGraph, const BRepGraph_EdgeCurve3DRepId& theId)
 {
+  auto& registry = OcctL::Compat::Curve3DRegistryInstance();
+  auto* entry = registry.FindByIndex(theId.Index);
+  if (entry) {
+    return entry->Curve;
+  }
   const auto& topo = theGraph.Topo();
   for (auto eid = topo.Edges().StartId(); eid < topo.Edges().EndId(); ++eid)
   {
@@ -166,6 +180,11 @@ SurfaceFromRep(const BRepGraph& theGraph, const BRepGraph_FaceSurfaceRepId& theI
 inline occ::handle<Geom2d_Curve>
 Curve2DFromRep(const BRepGraph& theGraph, const BRepGraph_CoEdgeCurve2DRepId& theId)
 {
+  auto& registry = OcctL::Compat::Curve2DRegistryInstance();
+  auto* entry = registry.FindByIndex(theId.Index);
+  if (entry) {
+    return entry->Curve;
+  }
   const auto& topo = theGraph.Topo();
   for (auto cid = topo.CoEdges().StartId(); cid < topo.CoEdges().EndId(); ++cid)
   {

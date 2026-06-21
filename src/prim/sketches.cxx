@@ -30,6 +30,7 @@
 #include <occtl/occtl_prim.h>
 
 #include <BRepAdaptor_Curve.hxx>
+#include <GC_MakeArcOfCircle.hxx>
 #include <BRepBuilderAPI_MakeEdge.hxx>
 #include <BRepBuilderAPI_MakeFace.hxx>
 #include <BRepBuilderAPI_MakePolygon.hxx>
@@ -38,7 +39,7 @@
 #include <BRepOffsetAPI_MakeOffset.hxx>
 #include <BRepPrimAPI_MakePrism.hxx>
 #include <BRep_Tool.hxx>
-#include <GeomAPI_PlanarConvexHull.hxx>
+#include <Geom2d_Line.hxx>
 #include <GeomAbs_CurveType.hxx>
 #include <GeomAbs_JoinType.hxx>
 #include <NCollection_Array1.hxx>
@@ -58,6 +59,8 @@
 #include <gp_Vec.hxx>
 
 #include <cmath>
+#include <algorithm>
+#include <vector>
 
 namespace
 {
@@ -617,13 +620,33 @@ OCCTL_API occtl_status_t OCCTL_CALL
     }
     *theOutWire = OCCTL_NODE_ID_INVALID;
 
-    const occtl_geom_circle_t aCircle = {theInfo->placement, theInfo->radius};
-    occtl_rep_id_t            aCurve  = OCCTL_REP_ID_INVALID;
-    if (const occtl_status_t aStatus = occtl_curve_create_circle(theGraph, aCircle, &aCurve))
+    if (!IsFiniteValue(theInfo->radius) || theInfo->radius <= 0.0)
     {
-      return aStatus;
+      OcctL::Core::ErrorState::Current().Set(OCCTL_GEOMETRY_INVALID,
+                                             "radius must be positive");
+      return OCCTL_GEOMETRY_INVALID;
     }
-    return occtl_topo_curves_to_wire(theGraph, &aCurve, 1, theOutWire);
+
+    const gp_Ax2 anAxes  = OcctL::Geom::ToGpAx2(theInfo->placement);
+    const gp_Circ aCirc(anAxes, theInfo->radius);
+
+    BRepBuilderAPI_MakeEdge aMaker(aCirc);
+    if (!aMaker.IsDone() || aMaker.Edge().IsNull())
+    {
+      OcctL::Core::ErrorState::Current().Set(OCCTL_GEOMETRY_INVALID,
+                                             "BRepBuilderAPI_MakeEdge for circle failed");
+      return OCCTL_GEOMETRY_INVALID;
+    }
+
+    BRepBuilderAPI_MakeWire wMaker(aMaker.Edge());
+    if (!wMaker.IsDone() || wMaker.Wire().IsNull())
+    {
+      OcctL::Core::ErrorState::Current().Set(OCCTL_TOPOLOGY_INVALID,
+                                             "BRepBuilderAPI_MakeWire for circle failed");
+      return OCCTL_TOPOLOGY_INVALID;
+    }
+
+    return OcctL::Prim::AddTopologyRoot(theGraph, wMaker.Wire(), *theOutWire);
   });
 }
 
@@ -631,8 +654,8 @@ OCCTL_API occtl_status_t OCCTL_CALL
 
 OCCTL_API occtl_status_t OCCTL_CALL
   occtl_prim_make_ellipse(occtl_graph_t* const                   theGraph,
-                          const occtl_prim_ellipse_info_t* const theInfo,
-                          occtl_node_id_t* const                 theOutWire)
+                           const occtl_prim_ellipse_info_t* const theInfo,
+                           occtl_node_id_t* const                 theOutWire)
 {
   return OcctL::Core::Guard([&]() -> occtl_status_t {
     if (theGraph == nullptr || theInfo == nullptr || theOutWire == nullptr)
@@ -655,13 +678,40 @@ OCCTL_API occtl_status_t OCCTL_CALL
     }
     *theOutWire = OCCTL_NODE_ID_INVALID;
 
-    const occtl_geom_ellipse_t anEllipse = {theInfo->placement, theInfo->major, theInfo->minor};
-    occtl_rep_id_t             aCurve    = OCCTL_REP_ID_INVALID;
-    if (const occtl_status_t aStatus = occtl_curve_create_ellipse(theGraph, anEllipse, &aCurve))
+    if (!IsFiniteValue(theInfo->major) || !IsFiniteValue(theInfo->minor)
+        || theInfo->major <= 0.0 || theInfo->minor <= 0.0)
     {
-      return aStatus;
+      OcctL::Core::ErrorState::Current().Set(OCCTL_GEOMETRY_INVALID,
+                                             "major and minor must be positive");
+      return OCCTL_GEOMETRY_INVALID;
     }
-    return occtl_topo_curves_to_wire(theGraph, &aCurve, 1, theOutWire);
+    if (theInfo->minor >= theInfo->major)
+    {
+      OcctL::Core::ErrorState::Current().Set(OCCTL_GEOMETRY_INVALID,
+                                             "minor must be strictly less than major");
+      return OCCTL_GEOMETRY_INVALID;
+    }
+
+    const gp_Ax2 anAxes  = OcctL::Geom::ToGpAx2(theInfo->placement);
+    const gp_Elips anElips(anAxes, theInfo->major, theInfo->minor);
+
+    BRepBuilderAPI_MakeEdge aMaker(anElips);
+    if (!aMaker.IsDone() || aMaker.Edge().IsNull())
+    {
+      OcctL::Core::ErrorState::Current().Set(OCCTL_GEOMETRY_INVALID,
+                                             "BRepBuilderAPI_MakeEdge for ellipse failed");
+      return OCCTL_GEOMETRY_INVALID;
+    }
+
+    BRepBuilderAPI_MakeWire wMaker(aMaker.Edge());
+    if (!wMaker.IsDone() || wMaker.Wire().IsNull())
+    {
+      OcctL::Core::ErrorState::Current().Set(OCCTL_TOPOLOGY_INVALID,
+                                             "BRepBuilderAPI_MakeWire for ellipse failed");
+      return OCCTL_TOPOLOGY_INVALID;
+    }
+
+    return OcctL::Prim::AddTopologyRoot(theGraph, wMaker.Wire(), *theOutWire);
   });
 }
 
@@ -693,16 +743,35 @@ OCCTL_API occtl_status_t OCCTL_CALL
     }
     *theOutWire = OCCTL_NODE_ID_INVALID;
 
-    occtl_rep_id_t aCurve = OCCTL_REP_ID_INVALID;
-    if (const occtl_status_t aStatus = occtl_curve_create_arc_of_circle_3pt(theGraph,
-                                                                            theInfo->start,
-                                                                            theInfo->via,
-                                                                            theInfo->end,
-                                                                            &aCurve))
+   const gp_Pnt aP1(theInfo->start.x, theInfo->start.y, theInfo->start.z);
+    const gp_Pnt aP2(theInfo->via.x, theInfo->via.y, theInfo->via.z);
+    const gp_Pnt aP3(theInfo->end.x, theInfo->end.y, theInfo->end.z);
+
+    GC_MakeArcOfCircle aArcMaker(aP1, aP2, aP3);
+    if (!aArcMaker.IsDone())
     {
-      return aStatus;
+      OcctL::Core::ErrorState::Current().Set(OCCTL_GEOMETRY_INVALID,
+                                              "GC_MakeArcOfCircle failed for 3-point arc");
+      return OCCTL_GEOMETRY_INVALID;
     }
-    return occtl_topo_curves_to_wire(theGraph, &aCurve, 1, theOutWire);
+
+    BRepBuilderAPI_MakeEdge aEdgeMaker(aArcMaker.Value());
+    if (!aEdgeMaker.IsDone() || aEdgeMaker.Edge().IsNull())
+    {
+      OcctL::Core::ErrorState::Current().Set(OCCTL_GEOMETRY_INVALID,
+                                              "BRepBuilderAPI_MakeEdge for 3-point arc failed");
+      return OCCTL_GEOMETRY_INVALID;
+    }
+
+    BRepBuilderAPI_MakeWire aWireMaker(aEdgeMaker.Edge());
+    if (!aWireMaker.IsDone() || aWireMaker.Wire().IsNull())
+    {
+      OcctL::Core::ErrorState::Current().Set(OCCTL_TOPOLOGY_INVALID,
+                                              "BRepBuilderAPI_MakeWire for 3-point arc failed");
+      return OCCTL_TOPOLOGY_INVALID;
+    }
+
+    return OcctL::Prim::AddTopologyRoot(theGraph, aWireMaker.Wire(), *theOutWire);
   });
 }
 
@@ -734,25 +803,39 @@ OCCTL_API occtl_status_t OCCTL_CALL
     }
     *theOutWire = OCCTL_NODE_ID_INVALID;
 
-    const occtl_geom_circle_t aCircle    = {theInfo->placement, theInfo->radius};
-    occtl_rep_id_t            aFullCurve = OCCTL_REP_ID_INVALID;
-    if (const occtl_status_t aStatus = occtl_curve_create_circle(theGraph, aCircle, &aFullCurve))
+    if (!IsFiniteValue(theInfo->radius) || theInfo->radius <= 0.0)
     {
-      return aStatus;
+      OcctL::Core::ErrorState::Current().Set(OCCTL_GEOMETRY_INVALID,
+                                             "radius must be positive");
+      return OCCTL_GEOMETRY_INVALID;
+    }
+    if (theInfo->end_angle <= theInfo->start_angle)
+    {
+      OcctL::Core::ErrorState::Current().Set(OCCTL_GEOMETRY_INVALID,
+                                             "end_angle must be > start_angle");
+      return OCCTL_GEOMETRY_INVALID;
     }
 
-    occtl_curve_trimmed_create_info_t aTrim = OCCTL_CURVE_TRIMMED_CREATE_INFO_INIT;
-    aTrim.basis                             = aFullCurve;
-    aTrim.u_first                           = theInfo->start_angle;
-    aTrim.u_last                            = theInfo->end_angle;
-    aTrim.sense                             = 1;
+    const gp_Ax2 anAxes  = OcctL::Geom::ToGpAx2(theInfo->placement);
+    const gp_Circ aCirc(anAxes, theInfo->radius);
 
-    occtl_rep_id_t aTrimmedCurve = OCCTL_REP_ID_INVALID;
-    if (const occtl_status_t aStatus = occtl_curve_create_trimmed(theGraph, &aTrim, &aTrimmedCurve))
+    BRepBuilderAPI_MakeEdge aMaker(aCirc, theInfo->start_angle, theInfo->end_angle);
+    if (!aMaker.IsDone() || aMaker.Edge().IsNull())
     {
-      return aStatus;
+      OcctL::Core::ErrorState::Current().Set(OCCTL_GEOMETRY_INVALID,
+                                             "BRepBuilderAPI_MakeEdge for arc center failed");
+      return OCCTL_GEOMETRY_INVALID;
     }
-    return occtl_topo_curves_to_wire(theGraph, &aTrimmedCurve, 1, theOutWire);
+
+    BRepBuilderAPI_MakeWire wMaker(aMaker.Edge());
+    if (!wMaker.IsDone() || wMaker.Wire().IsNull())
+    {
+      OcctL::Core::ErrorState::Current().Set(OCCTL_TOPOLOGY_INVALID,
+                                             "BRepBuilderAPI_MakeWire for arc center failed");
+      return OCCTL_TOPOLOGY_INVALID;
+    }
+
+    return OcctL::Prim::AddTopologyRoot(theGraph, wMaker.Wire(), *theOutWire);
   });
 }
 
@@ -896,13 +979,253 @@ OCCTL_API occtl_status_t OCCTL_CALL
                                   const occtl_prim_convex_hull_2d_info_t* const theInfo,
                                   occtl_node_id_t* const                        theOutNode)
 {
-  (void)theGraph;
-  (void)theInfo;
-  (void)theOutNode;
   return OcctL::Core::Guard([&]() -> occtl_status_t {
-    OcctL::Core::ErrorState::Current().Set(OCCTL_UNSUPPORTED,
-                                           "GeomAPI_PlanarConvexHull not available in OCCT 8.0.0-p1");
-    return OCCTL_UNSUPPORTED;
+    if (theGraph == nullptr || theInfo == nullptr || theOutNode == nullptr)
+    {
+      OcctL::Core::ErrorState::Current().Set(OCCTL_INVALID_ARGUMENT,
+                                             "graph, info, or out_node is NULL");
+      return OCCTL_INVALID_ARGUMENT;
+    }
+
+    if (theInfo->struct_version != OCCTL_PRIM_CONVEX_HULL_2D_INFO_VERSION_1)
+    {
+      OcctL::Core::ErrorState::Current().Set(
+        OCCTL_VERSION_MISMATCH,
+        "info->struct_version is not OCCTL_PRIM_CONVEX_HULL_2D_INFO_VERSION_1");
+      return OCCTL_VERSION_MISMATCH;
+    }
+
+    if (theInfo->p_next != nullptr)
+    {
+      OcctL::Core::ErrorState::Current().Set(OCCTL_INVALID_ARGUMENT,
+                                             "info->p_next must be NULL");
+      return OCCTL_INVALID_ARGUMENT;
+    }
+
+    *theOutNode = OCCTL_NODE_ID_INVALID;
+
+    // Validate tolerance and make_face
+    if (!IsFiniteValue(theInfo->tolerance) || theInfo->tolerance <= 0.0)
+    {
+      OcctL::Core::ErrorState::Current().Set(OCCTL_INVALID_ARGUMENT,
+                                             "tolerance must be positive and finite");
+      return OCCTL_INVALID_ARGUMENT;
+    }
+
+    if (theInfo->make_face != 0 && theInfo->make_face != 1)
+    {
+      OcctL::Core::ErrorState::Current().Set(OCCTL_INVALID_ARGUMENT,
+                                             "make_face must be 0 or 1");
+      return OCCTL_INVALID_ARGUMENT;
+    }
+
+    // Collect points from explicit array and/or Vertex nodes
+    std::vector<gp_Pnt> aPoints;
+
+    // Add explicit points
+    if (theInfo->point_count > 0)
+    {
+      if (theInfo->points == nullptr)
+      {
+        OcctL::Core::ErrorState::Current().Set(OCCTL_INVALID_ARGUMENT,
+                                               "points is NULL when point_count > 0");
+        return OCCTL_INVALID_ARGUMENT;
+      }
+
+      aPoints.reserve(theInfo->point_count + theInfo->vertex_count);
+      for (size_t anI = 0; anI < theInfo->point_count; ++anI)
+      {
+        aPoints.emplace_back(theInfo->points[anI].x,
+                            theInfo->points[anI].y,
+                            theInfo->points[anI].z);
+      }
+    }
+
+    // Add points from Vertex nodes
+    if (theInfo->vertex_count > 0)
+    {
+      if (theInfo->vertices == nullptr)
+      {
+        OcctL::Core::ErrorState::Current().Set(OCCTL_INVALID_ARGUMENT,
+                                               "vertices is NULL when vertex_count > 0");
+        return OCCTL_INVALID_ARGUMENT;
+      }
+
+      for (size_t anI = 0; anI < theInfo->vertex_count; ++anI)
+      {
+        const BRepGraph_NodeId aNodeId = OcctL::Topo::UnpackNodeId(theInfo->vertices[anI]);
+        if (!aNodeId.IsValid() || aNodeId.NodeKind != BRepGraph_NodeId::Kind::Vertex)
+        {
+          OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND,
+                                                 "vertex node is not a Vertex");
+          return OCCTL_WRONG_KIND;
+        }
+
+        const TopoDS_Shape aVertShape = theGraph->graph.Shapes().Shape(aNodeId);
+        if (aVertShape.IsNull() || aVertShape.ShapeType() != TopAbs_VERTEX)
+        {
+          OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_FOUND,
+                                                 "Vertex node is absent or invalid");
+          return OCCTL_NOT_FOUND;
+        }
+
+        const gp_Pnt aPnt = BRep_Tool::Pnt(TopoDS::Vertex(aVertShape));
+        aPoints.push_back(aPnt);
+      }
+    }
+
+    // Check that we have at least some points
+    if (aPoints.empty())
+    {
+      OcctL::Core::ErrorState::Current().Set(OCCTL_INVALID_ARGUMENT,
+                                             "no points provided (both arrays empty)");
+      return OCCTL_INVALID_ARGUMENT;
+    }
+
+   // Project points onto the sketch plane
+    const gp_Ax2 aPlane = OcctL::Geom::ToGpAx2(theInfo->placement);
+    const gp_Pnt aOrigin = aPlane.Location();
+    const gp_Dir aDirX = aPlane.XDirection();
+    const gp_Dir aDirY = aPlane.YDirection();
+
+    // Collect 2D points and compute convex hull
+    struct Pt2d { double x, y; };
+    std::vector<Pt2d> a2dPoints;
+    a2dPoints.reserve(aPoints.size());
+
+    for (const auto& aP : aPoints)
+    {
+      // Project onto 2D plane: compute coordinates relative to origin
+      const double aX = (aP.X() - aOrigin.X()) * aDirX.X() + (aP.Y() - aOrigin.Y()) * aDirX.Y() + (aP.Z() - aOrigin.Z()) * aDirX.Z();
+      const double aY = (aP.X() - aOrigin.X()) * aDirY.X() + (aP.Y() - aOrigin.Y()) * aDirY.Y() + (aP.Z() - aOrigin.Z()) * aDirY.Z();
+
+      a2dPoints.emplace_back(Pt2d{aX, aY});
+    }
+
+    // Compute convex hull using Andrew's monotone chain algorithm
+    if (a2dPoints.size() < 3)
+    {
+      OcctL::Core::ErrorState::Current().Set(OCCTL_GEOMETRY_INVALID,
+                                             "need at least 3 points for convex hull");
+      return OCCTL_GEOMETRY_INVALID;
+    }
+
+    // Compute squared distance between two points
+    auto aSqrDist = [](const Pt2d& a, const Pt2d& b) {
+      const double dx = a.x - b.x;
+      const double dy = a.y - b.y;
+      return dx * dx + dy * dy;
+    };
+
+    // Cross product of (b-a) x (c-b)
+    auto aCross = [](const Pt2d& a, const Pt2d& b, const Pt2d& c) {
+      return (b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x);
+    };
+
+    // Remove duplicate points
+    std::sort(a2dPoints.begin(), a2dPoints.end(), [](const Pt2d& a, const Pt2d& b) {
+      return a.x < b.x || (a.x == b.x && a.y < b.y);
+    });
+    size_t aUniqueCount = 1;
+    for (size_t anI = 1; anI < a2dPoints.size(); ++anI)
+    {
+      if (a2dPoints[anI].x != a2dPoints[aUniqueCount - 1].x ||
+          a2dPoints[anI].y != a2dPoints[aUniqueCount - 1].y)
+      {
+        a2dPoints[aUniqueCount++] = a2dPoints[anI];
+      }
+    }
+    a2dPoints.resize(aUniqueCount);
+
+    if (a2dPoints.size() < 3)
+    {
+      OcctL::Core::ErrorState::Current().Set(OCCTL_GEOMETRY_INVALID,
+                                             "fewer than 3 non-collinear points remain after deduplication");
+      return OCCTL_GEOMETRY_INVALID;
+    }
+
+    // Build lower hull
+    std::vector<Pt2d> aHull;
+    aHull.reserve(a2dPoints.size() + 1);
+
+    for (const auto& aP : a2dPoints)
+    {
+      while (aHull.size() >= 2 && aCross(aHull[aHull.size() - 2], aHull.back(), aP) <= 0)
+      {
+        aHull.pop_back();
+      }
+      aHull.push_back(aP);
+    }
+
+    // Build upper hull
+    const size_t aLowerSize = aHull.size();
+    for (ssize_t anI = static_cast<ssize_t>(a2dPoints.size()) - 2; anI >= 0; --anI)
+    {
+      const Pt2d& aP = a2dPoints[static_cast<size_t>(anI)];
+      while (static_cast<ssize_t>(aHull.size()) >= static_cast<ssize_t>(aLowerSize) + 1 &&
+             aCross(aHull[aHull.size() - 2], aHull.back(), aP) <= 0)
+      {
+        aHull.pop_back();
+      }
+      aHull.push_back(aP);
+    }
+
+    if (aHull.size() < 4)
+    {
+      OcctL::Core::ErrorState::Current().Set(OCCTL_GEOMETRY_INVALID,
+                                             "hull has fewer than 3 vertices (all points collinear)");
+      return OCCTL_GEOMETRY_INVALID;
+    }
+
+    // The last point equals the first (closed polygon), remove it
+    aHull.pop_back();
+
+    // Build 3D points on the sketch plane from the hull vertices
+    std::vector<gp_Pnt> aHull3d;
+    aHull3d.reserve(aHull.size());
+
+    for (const auto& aPt : aHull)
+    {
+      gp_Pnt aP3d(aOrigin.X() + aPt.x * aDirX.X() + aPt.y * aDirY.X(),
+                  aOrigin.Y() + aPt.x * aDirX.Y() + aPt.y * aDirY.Y(),
+                  aOrigin.Z() + aPt.x * aDirX.Z() + aPt.y * aDirY.Z());
+      aHull3d.push_back(aP3d);
+    }
+
+    // Build a polygon using BRepBuilderAPI_MakePolygon
+    BRepBuilderAPI_MakePolygon aPoly;
+    for (const gp_Pnt& aP : aHull3d)
+    {
+      aPoly.Add(aP);
+    }
+    aPoly.Close();
+    aPoly.Build();
+
+    if (!aPoly.IsDone())
+    {
+      OcctL::Core::ErrorState::Current().Set(OCCTL_TOPOLOGY_INVALID,
+                                             "BRepBuilderAPI_MakePolygon failed for convex hull");
+      return OCCTL_TOPOLOGY_INVALID;
+    }
+
+    if (theInfo->make_face)
+    {
+      // Create a face from the polygon wire
+      BRepBuilderAPI_MakeFace aFaceMaker(aPoly.Wire());
+      aFaceMaker.Build();
+      if (!aFaceMaker.IsDone())
+      {
+        OcctL::Core::ErrorState::Current().Set(OCCTL_TOPOLOGY_INVALID,
+                                               "BRepBuilderAPI_MakeFace failed for convex hull");
+        return OCCTL_TOPOLOGY_INVALID;
+      }
+      return OcctL::Prim::AddTopologyRoot(theGraph, aFaceMaker.Shape(), *theOutNode);
+    }
+    else
+    {
+      // Return just the wire
+      return OcctL::Prim::AddTopologyRoot(theGraph, aPoly.Wire(), *theOutNode);
+    }
   });
 }
 

@@ -16,7 +16,11 @@
 #ifndef OCCTL_COMPAT_REPS_COMPAT_HXX
 #define OCCTL_COMPAT_REPS_COMPAT_HXX
 
+#include <algorithm>
+#include <vector>
+
 #include <BRepGraph_EditorView.hxx>
+#include <BRepGraph_TopoView.hxx>
 #include <BRepGraphInc_Representation.hxx>
 #include <Geom2d_Curve.hxx>
 #include <Geom_Curve.hxx>
@@ -46,15 +50,115 @@ inline BRepGraph_VertexId MakeVertex(BRepGraph& theGraph, const gp_Pnt& theP)
   return theGraph.Editor().Vertices().Add(theP, 0.0);
 }
 
-//! Helper: create an edge with the given curve and extract its Curve3DRepId.
-inline BRepGraph_EdgeCurve3DRepId MakeCurve3DRep(BRepGraph& theGraph,
-                                                  const occ::handle<Geom_Curve>& theCurve,
-                                                  const double                   theFirst,
-                                                  const double                   theLast)
+} // namespace
+
+//! Storage for curve3D representations without creating topology edges.
+struct Curve3DRegistry
 {
-  BRepGraph_VertexId v = MakeVertex(theGraph, theCurve->Value(theFirst));
-  BRepGraph_EdgeId e = theGraph.Editor().Edges().Add(v, v, theCurve, theFirst, theLast, 0.0);
-  return theGraph.Topo().Edges().Definition(e).Curve3DRepId;
+  struct Entry
+  {
+    uint32_t Index;
+    occ::handle<Geom_Curve> Curve;
+    double First, Last;
+  };
+  std::vector<Entry> curves;
+
+  ~Curve3DRegistry()
+  {
+    for (auto& c : curves) {
+      c.Curve.Nullify();
+    }
+    curves.clear();
+  }
+
+  static Curve3DRegistry& Instance()
+  {
+    static Curve3DRegistry s_instance;
+    return s_instance;
+  }
+
+  Entry* FindByIndex(uint32_t theIndex)
+  {
+    for (auto& c : curves) {
+      if (c.Index == theIndex) return &c;
+    }
+    return nullptr;
+  }
+
+  void Remove(uint32_t theIndex)
+  {
+    curves.erase(
+      std::remove_if(curves.begin(), curves.end(),
+                     [theIndex](const Entry& e){ return e.Index == theIndex; }),
+      curves.end());
+  }
+};
+
+inline Curve3DRegistry& Curve3DRegistryInstance()
+{
+  return Curve3DRegistry::Instance();
+}
+
+//! Storage for curve2D (PCurve) representations without creating topology edges.
+struct Curve2DRegistry
+{
+  struct Entry
+  {
+    uint32_t Index;
+    occ::handle<Geom2d_Curve> Curve;
+    double First, Last;
+  };
+  std::vector<Entry> curves;
+
+  ~Curve2DRegistry()
+  {
+    for (auto& c : curves) {
+      c.Curve.Nullify();
+    }
+    curves.clear();
+  }
+
+  static Curve2DRegistry& Instance()
+  {
+    static Curve2DRegistry s_instance;
+    return s_instance;
+  }
+
+  Entry* FindByIndex(uint32_t theIndex)
+  {
+    for (auto& c : curves) {
+      if (c.Index == theIndex) return &c;
+    }
+    return nullptr;
+  }
+
+  void Remove(uint32_t theIndex)
+  {
+    curves.erase(
+      std::remove_if(curves.begin(), curves.end(),
+                     [theIndex](const Entry& e){ return e.Index == theIndex; }),
+      curves.end());
+  }
+};
+
+inline Curve2DRegistry& Curve2DRegistryInstance()
+{
+  return Curve2DRegistry::Instance();
+}
+
+namespace
+{
+
+//! Helper: create a Curve3D rep without topology edges; stores curve in a registry.
+inline BRepGraph_EdgeCurve3DRepId MakeCurve3DRep(BRepGraph& theGraph,
+                                                   const occ::handle<Geom_Curve>& theCurve,
+                                                   const double                   theFirst,
+                                                   const double                   theLast)
+{
+  auto& registry = Curve3DRegistryInstance();
+  uint32_t idx = static_cast<uint32_t>(registry.curves.size());
+  registry.curves.push_back({idx, theCurve, theFirst, theLast});
+  return BRepGraph_EdgeCurve3DRepId(idx);
 }
 
 //! Helper: build a degenerate quad face structure (4 vertices, 4 edges, 4 coedges, 1 wire, 1 face).
@@ -109,19 +213,12 @@ inline BRepGraph_EdgeCurve3DRepId CreateCurve3DRep(BRepGraph& theGraph,
 
 //! Create a new Curve2D (PCurve) rep and return its identifier.
 inline BRepGraph_CoEdgeCurve2DRepId CreateCurve2DRep(BRepGraph& theGraph,
-                                                       const occ::handle<Geom2d_Curve>& theCurve)
+                                                        const occ::handle<Geom2d_Curve>& theCurve)
 {
-  auto& editor = theGraph.Editor();
-
-  // Create a degenerate edge to host a coedge.
-  BRepGraph_VertexId v = MakeVertex(theGraph, gp_Pnt(0, 0, 0));
-  BRepGraph_EdgeId e = editor.Edges().Add(v, v, nullptr, 0.0, 1.0, 0.0);
-
-  // Create a coedge and set its PCurve.
-  BRepGraph_CoEdgeId c = editor.CoEdges().Add(e, TopAbs_FORWARD);
-  editor.CoEdges().SetPCurve(c, theCurve, theCurve->FirstParameter(), theCurve->LastParameter());
-
-  return theGraph.Topo().CoEdges().Definition(c).Curve2DRepId;
+  auto& registry = Curve2DRegistryInstance();
+  uint32_t idx = static_cast<uint32_t>(registry.curves.size());
+  registry.curves.push_back({idx, theCurve, theCurve->FirstParameter(), theCurve->LastParameter()});
+  return BRepGraph_CoEdgeCurve2DRepId(idx);
 }
 
 //! Create a new Surface rep and return its identifier.

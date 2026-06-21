@@ -103,8 +103,33 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_topo_edge_view(const occtl_graph_t* co
     theView->has_curve      = BRepGraph_Tool::Edge::HasCurve(aGraph, anEdgeId) ? 1 : 0;
     theView->is_degenerated = BRepGraph_Tool::Edge::Degenerated(aGraph, anEdgeId) ? 1 : 0;
     theView->is_closed      = BRepGraph_Tool::Edge::IsClosed(aGraph, anEdgeId) ? 1 : 0;
-    theView->same_parameter = 0; // 8.0.0-p1: BRepGraph_Tool::SameParameter takes CoEdgeId
-    theView->same_range     = 0; // 8.0.0-p1: BRepGraph_Tool::SameRange takes CoEdgeId
+
+    // Compute same_parameter and same_range from all coedges of this edge.
+    // An edge has same_parameter/same_range = 1 only if ALL its coedges do.
+    {
+      const auto& aCoEdges = aGraph.Topo().Edges().CoEdges(anEdgeId);
+      theView->same_parameter = (aCoEdges.Size() == 0) ? 0 : 1;
+      for (const BRepGraph_CoEdgeId& aCoEdge : aCoEdges)
+      {
+        if (!BRepGraph_Tool::CoEdge::SameParameter(aGraph, aCoEdge))
+        {
+          theView->same_parameter = 0;
+          break;
+        }
+      }
+    }
+    {
+      const auto& aCoEdges = aGraph.Topo().Edges().CoEdges(anEdgeId);
+      theView->same_range   = (aCoEdges.Size() == 0) ? 0 : 1;
+      for (const BRepGraph_CoEdgeId& aCoEdge : aCoEdges)
+      {
+        if (!BRepGraph_Tool::CoEdge::SameRange(aGraph, aCoEdge))
+        {
+          theView->same_range = 0;
+          break;
+        }
+      }
+    }
     theView->is_manifold    = BRepGraph_Tool::Edge::IsManifold(aGraph, anEdgeId) ? 1 : 0;
     theView->is_boundary    = BRepGraph_Tool::Edge::IsBoundary(aGraph, anEdgeId) ? 1 : 0;
     return OCCTL_OK;

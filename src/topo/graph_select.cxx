@@ -34,6 +34,7 @@
 #ifndef OCCTL_NO_BREPGRAPH_ALGO
 #include <BRepGraphAlgo_BndLib.hxx>
 #endif
+#include <BRepBndLib.hxx>
 #include <BRepGraph_ChildExplorer.hxx>
 #include <BRepGraph_Iterator.hxx>
 #include <BRepGraph_Tool.hxx>
@@ -275,11 +276,14 @@ bool boxInsideBox(const Bnd_Box& theCandidate, const Bnd_Box& theFilter)
 
 bool candidateCenter(BRepGraph& theGraph, const BRepGraph_NodeId theNode, gp_Pnt& theOutCenter)
 {
-#ifndef OCCTL_NO_BREPGRAPH_ALGO
-  const Bnd_Box aBox = BRepGraphAlgo_BndLib::AddCached(theGraph,
-                                                       theNode,
-                                                       BRepGraphAlgo_BndLib::Precision::Standard,
-                                                       true);
+  const TopoDS_Shape aShape = theGraph.Shapes().Shape(theNode);
+  if (aShape.IsNull())
+  {
+    return false;
+  }
+
+  Bnd_Box aBox;
+  BRepBndLib::Add(aShape, aBox);
   if (aBox.IsVoid())
   {
     return false;
@@ -290,12 +294,6 @@ bool candidateCenter(BRepGraph& theGraph, const BRepGraph_NodeId theNode, gp_Pnt
   theOutCenter =
     gp_Pnt((aMin.X() + aMax.X()) * 0.5, (aMin.Y() + aMax.Y()) * 0.5, (aMin.Z() + aMax.Z()) * 0.5);
   return true;
-#else
-  (void)theGraph;
-  (void)theNode;
-  (void)theOutCenter;
-  return false;
-#endif
 }
 
 bool measureMatches(BRepGraph&                    theGraph,
@@ -316,8 +314,8 @@ bool measureMatches(BRepGraph&                    theGraph,
 }
 
 bool bboxMatches(BRepGraph&                    theGraph,
-                 const BRepGraph_NodeId        theNode,
-                 const occtl_select_options_t& theOptions)
+                  const BRepGraph_NodeId        theNode,
+                  const occtl_select_options_t& theOptions)
 {
   if (theOptions.use_bbox == 0)
   {
@@ -330,17 +328,14 @@ bool bboxMatches(BRepGraph&                    theGraph,
     return false;
   }
 
-#ifdef OCCTL_NO_BREPGRAPH_ALGO
-  (void)theGraph;
-  (void)theNode;
-  (void)theOptions;
-  return false;
-#else
-  const Bnd_Box aCandidate =
-    BRepGraphAlgo_BndLib::AddCached(theGraph,
-                                    theNode,
-                                    BRepGraphAlgo_BndLib::Precision::Standard,
-                                    true);
+  const TopoDS_Shape aShape = theGraph.Shapes().Shape(theNode);
+  if (aShape.IsNull())
+  {
+    return false;
+  }
+
+  Bnd_Box aCandidate;
+  BRepBndLib::Add(aShape, aCandidate);
   if (aCandidate.IsVoid())
   {
     return false;
@@ -354,15 +349,14 @@ bool bboxMatches(BRepGraph&                    theGraph,
       const gp_Pnt aMin = aCandidate.CornerMin();
       const gp_Pnt aMax = aCandidate.CornerMax();
       const gp_Pnt aCenter((aMin.X() + aMax.X()) * 0.5,
-                           (aMin.Y() + aMax.Y()) * 0.5,
-                           (aMin.Z() + aMax.Z()) * 0.5);
+                            (aMin.Y() + aMax.Y()) * 0.5,
+                            (aMin.Z() + aMax.Z()) * 0.5);
       return pointInsideBox(aCenter, theOptions.bbox);
     }
     case OCCTL_SELECT_BBOX_INTERSECTS:
     default:
       return !aCandidate.IsOut(aFilter);
   }
-#endif
 }
 
 bool candidateCenterCoordinate(BRepGraph&                theGraph,

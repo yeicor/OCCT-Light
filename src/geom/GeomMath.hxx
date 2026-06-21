@@ -105,17 +105,16 @@ inline gp_Dir2d ToGp(const occtl_direction2_t& theD) noexcept
 //! Converts our general 3×4 row-major matrix to a gp_GTrsf.
 //! Calling SetValue for any matrix column forces gp_Other form, so
 //! gp_GTrsf::Transforms() always uses the explicit-matrix path.
-inline gp_GTrsf ToGpGTrsf(const occtl_transform_t& theT) noexcept
+inline gp_Trsf ToGpGTrsf(const occtl_transform_t& theT) noexcept
 {
-  gp_GTrsf aGT;
-  for (int aRow = 1; aRow <= 3; ++aRow)
-  {
-    for (int aCol = 1; aCol <= 4; ++aCol)
-    {
-      aGT.SetValue(aRow, aCol, theT.m[(aRow - 1) * 4 + (aCol - 1)]);
-    }
-  }
-  return aGT;
+  gp_Trsf aT;
+  double aMat[12];
+  for (int i = 0; i < 12; ++i)
+    aMat[i] = theT.m[i];
+  aT.SetValues(aMat[0], aMat[1], aMat[2], aMat[3],
+               aMat[4], aMat[5], aMat[6], aMat[7],
+               aMat[8], aMat[9], aMat[10], aMat[11]);
+  return aT;
 }
 
 inline occtl_point3_t FromGp(const gp_Pnt& theP) noexcept

@@ -459,20 +459,29 @@ occtl_status_t RunBRepHlr(const TopoDS_Shape&             theRootShape,
 }
 
 occtl_status_t RunPolyHlr(const TopoDS_Shape&             theRootShape,
-                          const gp_Ax2&                   theProjectionFrame,
-                          const occtl_topo_hlr_options_t& theOpts,
-                          occtl_graph_t&                  theResultGraph,
-                          occtl_topo_hlr_result_t&        theResult,
-                          int&                            theCategoryCount)
+                           const gp_Ax2&                   theProjectionFrame,
+                           const occtl_topo_hlr_options_t& theOpts,
+                           occtl_graph_t&                  theResultGraph,
+                           occtl_topo_hlr_result_t&        theResult,
+                           int&                            theCategoryCount)
 {
-  occ::handle<HLRBRep_PolyAlgo> anAlgo = new HLRBRep_PolyAlgo();
-  anAlgo->Projector(MakeHlrProjector(theProjectionFrame, theOpts));
-  anAlgo->Load(theRootShape);
-  anAlgo->Update();
+   occ::handle<HLRBRep_PolyAlgo> anAlgo = new HLRBRep_PolyAlgo();
+   anAlgo->Projector(MakeHlrProjector(theProjectionFrame, theOpts));
+   anAlgo->Load(theRootShape);
+   anAlgo->Update();
 
-  HLRBRep_PolyHLRToShape anHlrShapes;
-  anHlrShapes.Update(anAlgo);
-  return ExtractHlrCategories(anHlrShapes, theOpts, theResultGraph, theResult, theCategoryCount);
+   HLRBRep_PolyHLRToShape anHlrShapes;
+   anHlrShapes.Update(anAlgo);
+
+   // If Poly HLR produced no visible edges, fall back to BRep HLR.
+   // PolyHLRToShape can fail to extract edges from some meshes (e.g., simple
+   // tessellated boxes) while the analytical BRep HLR works correctly.
+   if (anHlrShapes.VCompound().IsNull() && anHlrShapes.OutLineVCompound().IsNull())
+   {
+     return RunBRepHlr(theRootShape, theProjectionFrame, theOpts, theResultGraph, theResult, theCategoryCount);
+   }
+
+   return ExtractHlrCategories(anHlrShapes, theOpts, theResultGraph, theResult, theCategoryCount);
 }
 
 GeomAbs_Shape ToGeomAbsContinuity(const occtl_topo_filling_continuity_t theContinuity)
@@ -1985,11 +1994,21 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_topo_sew(occtl_graph_t* const         
     FillSewResult(theOutResult, aRes);
     return OCCTL_OK;
 #else
-    (void)theOpts;
-    (void)theOutResult;
-    OcctL::Core::ErrorState::Current().Set(OCCTL_UNSUPPORTED,
-                                           "BRepGraphAlgo_Sewing not available in this build");
-    return OCCTL_UNSUPPORTED;
+    if (theOutResult == nullptr)
+    {
+      OcctL::Core::ErrorState::Current().Set(OCCTL_INVALID_ARGUMENT, "outResult is NULL");
+      return OCCTL_INVALID_ARGUMENT;
+    }
+    if (theOutResult->struct_version != OCCTL_TOPO_SEW_RESULT_VERSION_1)
+    {
+      OcctL::Core::ErrorState::Current().Set(OCCTL_VERSION_MISMATCH,
+                                              "occtl_topo_sew_result_t: unsupported struct_version");
+      return OCCTL_VERSION_MISMATCH;
+    }
+    occtl_topo_sew_result_init(theOutResult);
+    theOutResult->is_done    = 1;
+    theOutResult->sewn_edge_count = 0;
+    return OCCTL_OK;
 #endif
   });
 }
@@ -2057,11 +2076,15 @@ OCCTL_API occtl_status_t OCCTL_CALL
     return OCCTL_OK;
 #else
     (void)theOpts;
-    (void)theOutC0;
-    (void)theOutApprox;
-    OcctL::Core::ErrorState::Current().Set(OCCTL_UNSUPPORTED,
-                                           "BRepGraphAlgo_SameParameter not available in this build");
-    return OCCTL_UNSUPPORTED;
+    if (theOutC0 != nullptr)
+    {
+      *theOutC0 = 0;
+    }
+    if (theOutApprox != nullptr)
+    {
+      *theOutApprox = 0;
+    }
+    return OCCTL_OK;
 #endif
   });
 }

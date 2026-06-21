@@ -436,41 +436,74 @@ OCCTL_API occtl_status_t OCCTL_CALL
     }
 
     NCollection_LinearVector<BRepGraph_WireRefId> aRefsToRemove;
-    if (theHoleCount == 0)
-    {
-      for (BRepGraph_RefsWireOfFace anIt(theGraph->graph, aFaceId); anIt.More(); anIt.Next())
+     if (theHoleCount == 0)
+     {
+       const BRepGraph_WireId aOuterWireId =
+         BRepGraph_Tool::Face::OuterWire(theGraph->graph, aFaceId);
+       if (aOuterWireId.IsValid())
+       {
+         for (BRepGraph_RefsWireOfFace anIt(theGraph->graph, aFaceId); anIt.More(); anIt.Next())
+         {
+           const BRepGraphInc::WireRef& aRef =
+             theGraph->graph.Refs().Wires().Entry(anIt.CurrentId());
+           if (aRef.ChildWireId != aOuterWireId)
+           {
+             aRefsToRemove.Append(anIt.CurrentId());
+           }
+         }
+       }
+       else
+       {
+         size_t anIdx = 0;
+         for (BRepGraph_RefsWireOfFace anIt(theGraph->graph, aFaceId); anIt.More(); anIt.Next())
+         {
+           if (anIdx++ > 0)
+           {
+             aRefsToRemove.Append(anIt.CurrentId());
+           }
+         }
+       }
+     }
+   else
       {
-        if (!BRepGraph_Tool::Wire::IsOuter(theGraph->graph, anIt.CurrentId()))
+        const BRepGraph_WireId aOuterWireId =
+          BRepGraph_Tool::Face::OuterWire(theGraph->graph, aFaceId);
+        BRepGraph_WireId aFallbackOuterWireId;
+        if (!aOuterWireId.IsValid())
         {
-          aRefsToRemove.Append(anIt.CurrentId());
-        }
-      }
-    }
-    else
-    {
-      NCollection_Array1<unsigned char> aFound(aRequestedHoles.Size());
-      for (size_t anI = 0; anI < aFound.Size(); ++anI)
-      {
-        aFound.ChangeAt(anI) = 0u;
-      }
-      for (BRepGraph_RefsWireOfFace anIt(theGraph->graph, aFaceId); anIt.More(); anIt.Next())
-      {
-        const BRepGraphInc::WireRef& aRef = theGraph->graph.Refs().Wires().Entry(anIt.CurrentId());
-        for (size_t anI = 0; anI < aRequestedHoles.Size(); ++anI)
-        {
-          if (aRef.ChildWireId == aRequestedHoles.Value(anI))
+          for (BRepGraph_RefsWireOfFace anIt(theGraph->graph, aFaceId); anIt.More(); anIt.Next())
           {
-            if (BRepGraph_Tool::Wire::IsOuter(theGraph->graph, anIt.CurrentId()))
-            {
-              OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_FOUND,
-                                                     "requested wire is the outer wire");
-              return OCCTL_NOT_FOUND;
-            }
-            aRefsToRemove.Append(anIt.CurrentId());
-            aFound.ChangeAt(anI) = 1u;
+            const BRepGraphInc::WireRef& aRef =
+              theGraph->graph.Refs().Wires().Entry(anIt.CurrentId());
+            aFallbackOuterWireId = aRef.ChildWireId;
+            break;
           }
         }
-      }
+        NCollection_Array1<unsigned char> aFound(aRequestedHoles.Size());
+        for (size_t anI = 0; anI < aFound.Size(); ++anI)
+        {
+          aFound.ChangeAt(anI) = 0u;
+        }
+        for (BRepGraph_RefsWireOfFace anIt(theGraph->graph, aFaceId); anIt.More(); anIt.Next())
+        {
+          const BRepGraphInc::WireRef& aRef = theGraph->graph.Refs().Wires().Entry(anIt.CurrentId());
+          for (size_t anI = 0; anI < aRequestedHoles.Size(); ++anI)
+          {
+            if (aRef.ChildWireId == aRequestedHoles.Value(anI))
+            {
+              const BRepGraph_WireId aCheckOuter =
+                aOuterWireId.IsValid() ? aOuterWireId : aFallbackOuterWireId;
+              if (aRef.ChildWireId == aCheckOuter)
+              {
+                OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_FOUND,
+                                                       "requested wire is the outer wire");
+                return OCCTL_NOT_FOUND;
+              }
+              aRefsToRemove.Append(anIt.CurrentId());
+              aFound.ChangeAt(anI) = 1u;
+            }
+          }
+        }
 
       for (size_t anI = 0; anI < aFound.Size(); ++anI)
       {
@@ -800,9 +833,9 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_topo_edge_remove_vertex(occtl_graph_t*
 //==================================================================================================
 
 OCCTL_API occtl_status_t OCCTL_CALL occtl_topo_curves_to_wire(occtl_graph_t* const   theGraph,
-                                                              const occtl_rep_id_t*  theCurveIds,
-                                                              const size_t           theCount,
-                                                              occtl_node_id_t* const theOutWire)
+                                                               const occtl_rep_id_t*  theCurveIds,
+                                                               const size_t           theCount,
+                                                               occtl_node_id_t* const theOutWire)
 {
   return OcctL::Core::Guard([&]() -> occtl_status_t {
     if (theGraph == nullptr || theOutWire == nullptr || theCount == 0 || theCurveIds == nullptr)
@@ -851,11 +884,11 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_topo_curves_to_wire(occtl_graph_t* con
 
       const BRepGraph_EdgeId anEdgeId =
         theGraph->graph.Editor().Edges().Add(aStartVert,
-                                             anEndVert,
-                                             aGeomCurve,
-                                             aU1,
-                                             aU2,
-                                             Precision::Confusion());
+                                              anEndVert,
+                                              aGeomCurve,
+                                              aU1,
+                                              aU2,
+                                              Precision::Confusion());
 
       const BRepGraph_CoEdgeId aCoEdgeId =
         theGraph->graph.Editor().CoEdges().Add(anEdgeId, TopAbs_FORWARD);

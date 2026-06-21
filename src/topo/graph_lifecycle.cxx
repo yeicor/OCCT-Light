@@ -205,7 +205,7 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_topo_remove_ref(occtl_graph_t* const t
 //==================================================================================================
 
 OCCTL_API occtl_status_t OCCTL_CALL occtl_topo_remove_rep(occtl_graph_t* const theGraph,
-                                                          const occtl_rep_id_t theRepId)
+                                                           const occtl_rep_id_t theRepId)
 {
   return OcctL::Core::Guard([&]() -> occtl_status_t {
     if (theGraph == nullptr)
@@ -214,12 +214,51 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_topo_remove_rep(occtl_graph_t* const t
       return OCCTL_INVALID_ARGUMENT;
     }
 
-    // 8.0.0-p1: Gen::RemoveRep not available; stub.
-    (void)theRepId;
-   OcctL::Core::ErrorState::Current().Set(OCCTL_UNSUPPORTED,
-                                             "occtl_topo_remove_rep not implemented");
+    const BRepGraph_RepId aRepId = OcctL::Topo::UnpackRepId(theRepId);
+    if (!aRepId.IsValid())
+    {
+      OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_FOUND,
+                                              "rep id is invalid or removed");
+      return OCCTL_NOT_FOUND;
+    }
+
+    const BRepGraph& aGraph = theGraph->graph;
+    const BRepGraph_RepId::Kind aKind = aRepId.RepKind;
+
+    switch (aKind)
+    {
+      case BRepGraph_RepId::Kind::EdgeCurve3D: {
+        const uint32_t aNb = aGraph.Topo().Edges().Nb();
+        (void)aNb;
+        break;
+      }
+      case BRepGraph_RepId::Kind::EdgePolygon3D: {
+        break;
+      }
+      case BRepGraph_RepId::Kind::CoEdgeCurve2D: {
+        break;
+      }
+      case BRepGraph_RepId::Kind::CoEdgePolygon2D: {
+        break;
+      }
+      case BRepGraph_RepId::Kind::CoEdgePolygonOnTri: {
+        break;
+      }
+      case BRepGraph_RepId::Kind::FaceSurface: {
+        break;
+      }
+      case BRepGraph_RepId::Kind::FaceTriangulation: {
+        break;
+      }
+      default:
+        OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_FOUND,
+                                                "unknown rep kind");
+        return OCCTL_NOT_FOUND;
+    }
+
+    OcctL::Core::ErrorState::Current().Set(OCCTL_UNSUPPORTED,
+                                            "occtl_topo_remove_rep not implemented");
     return OCCTL_UNSUPPORTED;
-    return OCCTL_OK;
   });
 }
 

@@ -432,18 +432,32 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_transform_inverted(occtl_transform_t  
       OcctL::Core::ErrorState::Current().Set(OCCTL_INVALID_ARGUMENT, "out_transform is NULL");
       return OCCTL_INVALID_ARGUMENT;
     }
-    try
-    {
-      OCC_CATCH_SIGNALS;
-      *theOutTransform = OcctL::Geom::FromGp(OcctL::Geom::ToGpGTrsf(theT).Inverted());
-      return OCCTL_OK;
-    }
-    catch (const Standard_Failure&)
-    {
-      OcctL::Core::ErrorState::Current().Set(OCCTL_GEOMETRY_INVALID,
-                                             "transform is singular (determinant near zero)");
-      return OCCTL_GEOMETRY_INVALID;
-    }
+  try
+     {
+       OCC_CATCH_SIGNALS;
+       // Check determinant before constructing gp_Trsf (SetValues throws on null det)
+       const double a11 = theT.m[0], a12 = theT.m[1], a13 = theT.m[2], a14 = theT.m[3];
+       const double a21 = theT.m[4], a22 = theT.m[5], a23 = theT.m[6], a24 = theT.m[7];
+       const double a31 = theT.m[8], a32 = theT.m[9], a33 = theT.m[10], a34 = theT.m[11];
+       const double det = a11 * (a22 * a33 - a23 * a32) - a12 * (a21 * a33 - a23 * a31)
+                          + a13 * (a21 * a32 - a22 * a31);
+       if (std::abs(det) <= gp::Resolution())
+       {
+         OcctL::Core::ErrorState::Current().Set(OCCTL_GEOMETRY_INVALID,
+                                                 "transform is singular (determinant near zero)");
+         return OCCTL_GEOMETRY_INVALID;
+       }
+       gp_Trsf aGTrsf;
+       aGTrsf.SetValues(a11, a12, a13, a14, a21, a22, a23, a24, a31, a32, a33, a34);
+       *theOutTransform = OcctL::Geom::FromGp(aGTrsf.Inverted());
+       return OCCTL_OK;
+     }
+     catch (const Standard_Failure&)
+     {
+       OcctL::Core::ErrorState::Current().Set(OCCTL_GEOMETRY_INVALID,
+                                               "transform is singular (determinant near zero)");
+       return OCCTL_GEOMETRY_INVALID;
+     }
   });
 }
 

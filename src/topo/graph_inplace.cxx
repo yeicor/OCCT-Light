@@ -13,8 +13,12 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+#include "DerivedStateOverrides.hxx"
 #include "GraphHandle.hxx"
 #include "IdConvert.hxx"
+
+#include <BRepGraph_EditorView.hxx>
+#include <BRepGraph_Tool.hxx>
 
 #include <occtl/occtl_topo.h>
 
@@ -22,7 +26,6 @@
 #include "../core/Guard.hxx"
 #include "../geom/GeomMath.hxx"
 
-#include <BRepGraph_EditorView.hxx>
 #include <Precision.hxx>
 
 #include <cmath>
@@ -168,56 +171,76 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_topo_set_edge_param_range(occtl_graph_
 
 OCCTL_API occtl_status_t OCCTL_CALL
   occtl_topo_set_edge_same_parameter(occtl_graph_t* const  theGraph,
-                                     const occtl_node_id_t theEdge,
-                                     const int32_t         theFlag)
+                                      const occtl_node_id_t theEdge,
+                                      const int32_t         theFlag)
 {
   return OcctL::Core::Guard([&]() -> occtl_status_t {
-    (void)theGraph;
-    (void)theEdge;
-    (void)theFlag;
-    return OCCTL_UNSUPPORTED;
+    BRepGraph_EdgeId anEdgeId;
+    if (const occtl_status_t aStatus =
+          OcctL::Topo::ToTypedId(theGraph, theEdge, BRepGraph_NodeId::Kind::Edge, anEdgeId))
+    {
+      return aStatus;
+    }
+
+    OcctL::Topo::DerivedState::SetSameParamOverride(&theGraph->graph, anEdgeId.Index, theFlag != 0);
+    return OCCTL_OK;
   });
 }
 
 //==================================================================================================
 
 OCCTL_API occtl_status_t OCCTL_CALL occtl_topo_set_edge_same_range(occtl_graph_t* const  theGraph,
-                                                                    const occtl_node_id_t theEdge,
-                                                                    const int32_t         theFlag)
+                                                                     const occtl_node_id_t theEdge,
+                                                                     const int32_t         theFlag)
 {
   return OcctL::Core::Guard([&]() -> occtl_status_t {
-    (void)theGraph;
-    (void)theEdge;
-    (void)theFlag;
-    return OCCTL_UNSUPPORTED;
+    BRepGraph_EdgeId anEdgeId;
+    if (const occtl_status_t aStatus =
+          OcctL::Topo::ToTypedId(theGraph, theEdge, BRepGraph_NodeId::Kind::Edge, anEdgeId))
+    {
+      return aStatus;
+    }
+
+    OcctL::Topo::DerivedState::SetSameRangeOverride(&theGraph->graph, anEdgeId.Index, theFlag != 0);
+    return OCCTL_OK;
   });
 }
 
 //==================================================================================================
 
 OCCTL_API occtl_status_t OCCTL_CALL occtl_topo_set_edge_is_degenerate(occtl_graph_t* const theGraph,
-                                                                       const occtl_node_id_t theEdge,
-                                                                       const int32_t         theFlag)
+                                                                        const occtl_node_id_t theEdge,
+                                                                        const int32_t         theFlag)
 {
   return OcctL::Core::Guard([&]() -> occtl_status_t {
-    (void)theGraph;
-    (void)theEdge;
-    (void)theFlag;
-    return OCCTL_UNSUPPORTED;
+    BRepGraph_EdgeId anEdgeId;
+    if (const occtl_status_t aStatus =
+          OcctL::Topo::ToTypedId(theGraph, theEdge, BRepGraph_NodeId::Kind::Edge, anEdgeId))
+    {
+      return aStatus;
+    }
+
+    OcctL::Topo::DerivedState::SetDegenerateOverride(&theGraph->graph, anEdgeId.Index, theFlag != 0);
+    return OCCTL_OK;
   });
 }
 
 //==================================================================================================
 
 OCCTL_API occtl_status_t OCCTL_CALL occtl_topo_set_edge_is_closed(occtl_graph_t* const  theGraph,
-                                                                   const occtl_node_id_t theEdge,
-                                                                   const int32_t         theFlag)
+                                                                    const occtl_node_id_t theEdge,
+                                                                    const int32_t         theFlag)
 {
   return OcctL::Core::Guard([&]() -> occtl_status_t {
-    (void)theGraph;
-    (void)theEdge;
-    (void)theFlag;
-    return OCCTL_UNSUPPORTED;
+    BRepGraph_EdgeId anEdgeId;
+    if (const occtl_status_t aStatus =
+          OcctL::Topo::ToTypedId(theGraph, theEdge, BRepGraph_NodeId::Kind::Edge, anEdgeId))
+    {
+      return aStatus;
+    }
+
+    OcctL::Topo::DerivedState::SetEdgeClosedOverride(&theGraph->graph, anEdgeId.Index, theFlag != 0);
+    return OCCTL_OK;
   });
 }
 
