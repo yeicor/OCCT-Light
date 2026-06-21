@@ -1780,9 +1780,14 @@ OCCTL_API occtl_status_t OCCTL_CALL
       return OCCTL_INVALID_ARGUMENT;
     }
 
-    NCollection_Array1<BRepGraph_NodeId> anEmpty(Standard_Integer(0), Standard_Integer(0));
-    BRepGraph::EditorView                      anEditor = theGraph->graph.Editor();
-    const BRepGraph_CompoundId                 aCompId  = anEditor.Compounds().Add(anEmpty);
+    BRepGraph::EditorView  anEditor = theGraph->graph.Editor();
+    const BRepGraph_CompoundId aCompId = anEditor.Compounds().Add(
+      NCollection_Array1<BRepGraph_NodeId>());
+    if (!aCompId.IsValid())
+    {
+      OcctL::Core::ErrorState::Current().Set(OCCTL_ERROR, "Compounds().Add returned invalid");
+      return OCCTL_ERROR;
+    }
     for (size_t anI = 0; anI < theInfo->child_count; ++anI)
     {
       const BRepGraph_NodeId aNodeId = OcctL::Topo::UnpackNodeId(theInfo->children[anI].id);

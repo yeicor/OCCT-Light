@@ -644,13 +644,23 @@ OCCTL_API occtl_status_t OCCTL_CALL
                                   const occtl_node_id_t      theWire,
                                   occtl_node_iter_t** const  theOutIter)
 {
-  (void)theGraph;
-  (void)theWire;
-  (void)theOutIter;
   return OcctL::Core::Guard([&]() -> occtl_status_t {
-    OcctL::Core::ErrorState::Current().Set(OCCTL_UNSUPPORTED,
-                                           "BRepGraph_WireExplorer not available in OCCT 8.0.0-p1");
-    return OCCTL_UNSUPPORTED;
+    if (theGraph == nullptr || theOutIter == nullptr)
+    {
+      OcctL::Core::ErrorState::Current().Set(OCCTL_INVALID_ARGUMENT,
+                                             theGraph ? "out_iter is NULL" : "graph is NULL");
+      return OCCTL_INVALID_ARGUMENT;
+    }
+    BRepGraph_WireId aWireId;
+    if (const occtl_status_t aErr =
+          OcctL::Topo::ToTypedId(theGraph, theWire, BRepGraph_NodeId::Kind::Wire, aWireId))
+    {
+      return aErr;
+    }
+    occtl_node_iter* anIter = new occtl_node_iter;
+    anIter->impl.template emplace<BRepGraph_DefsCoEdgeOfWire>(theGraph->graph, aWireId);
+    *theOutIter = anIter;
+    return OCCTL_OK;
   });
 }
 
@@ -663,15 +673,42 @@ OCCTL_API occtl_status_t OCCTL_CALL
                               const size_t                 theCap,
                               size_t* const                theOutCount)
 {
-  (void)theGraph;
-  (void)theWire;
-  (void)theOutBuf;
-  (void)theCap;
-  (void)theOutCount;
   return OcctL::Core::Guard([&]() -> occtl_status_t {
-    OcctL::Core::ErrorState::Current().Set(OCCTL_UNSUPPORTED,
-                                           "BRepGraph_WireExplorer not available in OCCT 8.0.0-p1");
-    return OCCTL_UNSUPPORTED;
+    if (theGraph == nullptr || theOutCount == nullptr)
+    {
+      OcctL::Core::ErrorState::Current().Set(OCCTL_INVALID_ARGUMENT,
+                                             theGraph ? "out_count is NULL" : "graph is NULL");
+      return OCCTL_INVALID_ARGUMENT;
+    }
+    BRepGraph_WireId aWireId;
+    if (const occtl_status_t aErr =
+          OcctL::Topo::ToTypedId(theGraph, theWire, BRepGraph_NodeId::Kind::Wire, aWireId))
+    {
+      return aErr;
+    }
+    const size_t aCount = static_cast<size_t>(BRepGraph_Tool::Wire::NbCoEdges(theGraph->graph, aWireId));
+    if (theOutBuf == nullptr)
+    {
+      *theOutCount = aCount;
+      return OCCTL_OK;
+    }
+    if (theCap < aCount)
+    {
+      *theOutCount = aCount;
+      return OCCTL_BUFFER_TOO_SMALL;
+    }
+    size_t anIdx = 0;
+    for (BRepGraph_DefsCoEdgeOfWire anIter(theGraph->graph, aWireId); anIter.More(); anIter.Next())
+    {
+      const BRepGraph_CoEdgeId aCoEdgeId = anIter.CurrentId();
+      const BRepGraph_EdgeId   anEdgeId  = BRepGraph_Tool::CoEdge::EdgeOf(theGraph->graph, aCoEdgeId);
+      const TopAbs_Orientation aOri      = BRepGraph_Tool::CoEdge::Orientation(theGraph->graph, aCoEdgeId);
+      theOutBuf[anIdx].id          = OcctL::Topo::PackNodeId(anEdgeId);
+      theOutBuf[anIdx].orientation = OcctL::Topo::FromOcctOrientation(aOri);
+      ++anIdx;
+    }
+    *theOutCount = aCount;
+    return OCCTL_OK;
   });
 }
 

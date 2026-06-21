@@ -280,7 +280,7 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_topo_shell_remove_face(occtl_graph_t* 
     for (const BRepGraph_FaceRefId& aRefId : aFaceRefs)
     {
       const BRepGraphInc::FaceRef& aFR = theGraph->graph.Refs().Faces().Entry(aRefId);
-      if (aFR.ChildFaceId != aFaceId)
+      if (aFR.ChildFaceId == aFaceId)
       {
         (void)theGraph->graph.Editor().Shells().RemoveFace(aShellId, aRefId);
         return OCCTL_OK;
@@ -659,7 +659,7 @@ OCCTL_API occtl_status_t OCCTL_CALL
     for (const BRepGraph_ChildRefId& aRefId : aChildRefs)
     {
       const BRepGraphInc::ChildRef& aCR = theGraph->graph.Refs().Children().Entry(aRefId);
-      if (aCR.ChildNodeId != aChildNodeId)
+      if (aCR.ChildNodeId == aChildNodeId)
       {
         (void)theGraph->graph.Editor().Compounds().RemoveChild(aCompId, aRefId);
         return OCCTL_OK;

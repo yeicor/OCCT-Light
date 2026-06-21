@@ -212,7 +212,7 @@ OCCTL_API occtl_status_t OCCTL_CALL
       return aErr;
     }
     *theOutCount = static_cast<uint32_t>(
-      static_cast<uint64_t>(0u)); // 8.0.0-p1: CompoundDef has no ChildRefIds
+      theGraph->graph.Topo().Compounds().Relations(aCompoundId).ChildRefIds.Size());
     return OCCTL_OK;
   });
 }
@@ -239,7 +239,7 @@ OCCTL_API occtl_status_t OCCTL_CALL
       return aErr;
     }
     *theOutCount = static_cast<uint32_t>(
-      static_cast<uint64_t>(0u)); // 8.0.0-p1: CompSolidDef has no SolidRefIds
+      theGraph->graph.Topo().CompSolids().Relations(aCompSolidId).SolidRefIds.Size());
     return OCCTL_OK;
   });
 }
