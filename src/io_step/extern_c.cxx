@@ -195,7 +195,7 @@ occtl_status_t AddShapeToFreshGraph(const TopoDS_Shape&    theShape,
   anOpts.CreateAutoProduct                 = false;
   anOpts.TrackAddedNodes                   = false;
   const BRepGraph::ShapesView::Result aRes = aGraph->graph.Shapes().Add(theShape, anOpts);
-  if (!aRes.Ok)
+  if (!aRes.IsOk())
   {
     OcctL::Core::ErrorState::Current().Set(
       OCCTL_TOPOLOGY_INVALID,

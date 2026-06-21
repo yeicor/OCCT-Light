@@ -18,8 +18,6 @@
 
 #include <occtl/occtl_core.h>
 
-#include <NCollection_Array1.hxx>
-
 #include <string_view>
 
 namespace OcctL::Core
@@ -57,10 +55,9 @@ public:
   static constexpr int THE_MAX_ERROR_MSG = 2048;
 
 private:
-  occtl_error_t            myView; //!< view returned to callers; @c message points into myMessage
-  char                     myBuffer[THE_MAX_ERROR_MSG]; //!< owned stack buffer
-  NCollection_Array1<char> myMessage; //!< wraps myBuffer as a bounds-checked array
-  int                      myLength;  //!< actual message length excluding NUL; 0 = empty
+  occtl_error_t myView;   //!< view returned to callers; @c message points into myBuffer
+  char          myBuffer[THE_MAX_ERROR_MSG]; //!< owned stack buffer
+  int           myLength; //!< actual message length excluding NUL; 0 = empty
 };
 
 } // namespace OcctL::Core

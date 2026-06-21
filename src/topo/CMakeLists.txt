@@ -68,4 +68,6 @@ occtl_add_module(topo
     TKHLR
 )
 
+target_include_directories(occtl-topo-obj PRIVATE ${CMAKE_SOURCE_DIR}/src/compat/occt81)
+
 occtl_module_compile_definitions(topo OCCTL_HAS_TOPO)

@@ -318,7 +318,7 @@ OCCTL_API occtl_status_t OCCTL_CALL
     anOpts.CreateAutoProduct                 = false;
     anOpts.TrackAddedNodes                   = false;
     const BRepGraph::ShapesView::Result aRes = aGraph->graph.Shapes().Add(aShape, anOpts);
-    if (!aRes.Ok)
+    if (!aRes.IsOk())
     {
       OcctL::Core::ErrorState::Current().Set(
         OCCTL_TOPOLOGY_INVALID,

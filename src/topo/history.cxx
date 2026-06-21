@@ -41,10 +41,11 @@ const BRepGraph_LayerHistory* findHistory(const BRepGraph& theGraph)
   return aHistory.get();
 }
 
-occtl_status_t emitUidArray(const NCollection_DynamicArray<BRepGraph_UID>& theData,
-                            occtl_uid_t* const                             theOutBuf,
-                            const size_t                                   theCap,
-                            size_t* const                                  theOutCount) noexcept
+template<typename T>
+occtl_status_t emitUidArray(const T&             theData,
+                            occtl_uid_t* const   theOutBuf,
+                            const size_t         theCap,
+                            size_t* const        theOutCount) noexcept
 {
   const size_t aRequired = theData.Size();
   *theOutCount           = aRequired;
@@ -125,10 +126,10 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_graph_history_modified(const occtl_gra
     }
     if (aHistory == nullptr)
     {
-      const NCollection_DynamicArray<BRepGraph_UID> anEmpty;
+      const NCollection_LinearVector<BRepGraph_UID> anEmpty;
       return emitUidArray(anEmpty, out_buf, cap, out_count);
     }
-    const NCollection_DynamicArray<BRepGraph_UID> aImages =
+    const NCollection_LinearVector<BRepGraph_UID> aImages =
       aHistory->FindModified(graph->graph, aUid);
     return emitUidArray(aImages, out_buf, cap, out_count);
   });
@@ -150,10 +151,10 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_graph_history_generated(const occtl_gr
     }
     if (aHistory == nullptr)
     {
-      const NCollection_DynamicArray<BRepGraph_UID> anEmpty;
+      const NCollection_LinearVector<BRepGraph_UID> anEmpty;
       return emitUidArray(anEmpty, out_buf, cap, out_count);
     }
-    const NCollection_DynamicArray<BRepGraph_UID> aImages =
+    const NCollection_LinearVector<BRepGraph_UID> aImages =
       aHistory->FindGenerated(graph->graph, aUid);
     return emitUidArray(aImages, out_buf, cap, out_count);
   });
@@ -177,7 +178,7 @@ OCCTL_API occtl_status_t OCCTL_CALL
       *out_count = 0;
       return OCCTL_OK;
     }
-    const NCollection_DynamicArray<BRepGraph_UID> aImages = aHistory->DeletedUids(graph->graph);
+    const NCollection_LinearVector<BRepGraph_UID> aImages = aHistory->DeletedUids(graph->graph);
     return emitUidArray(aImages, out_buf, cap, out_count);
   });
 }

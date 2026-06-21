@@ -82,20 +82,29 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_topo_edge_view(const occtl_graph_t* co
     theView->t_min                         = aRange.first;
     theView->t_max                         = aRange.second;
     theView->tolerance                     = BRepGraph_Tool::Edge::Tolerance(aGraph, anEdgeId);
-    theView->start_vertex =
-      OcctL::Topo::PackNodeId(BRepGraph_Tool::Edge::StartVertexId(aGraph, anEdgeId));
-    theView->end_vertex =
-      OcctL::Topo::PackNodeId(BRepGraph_Tool::Edge::EndVertexId(aGraph, anEdgeId));
+    {
+      const BRepGraph_VertexRefId aStartRef = BRepGraph_Tool::Edge::StartVertexId(aGraph, anEdgeId);
+      theView->start_vertex = aStartRef.IsValid()
+                                ? OcctL::Topo::PackNodeId(
+                                    BRepGraph_VertexId(aStartRef.Index))
+                                : occtl_node_id_t{};
+    }
+    {
+      const BRepGraph_VertexRefId aEndRef = BRepGraph_Tool::Edge::EndVertexId(aGraph, anEdgeId);
+      theView->end_vertex = aEndRef.IsValid()
+                              ? OcctL::Topo::PackNodeId(BRepGraph_VertexId(aEndRef.Index))
+                              : occtl_node_id_t{};
+    }
 
     const BRepGraphInc::EdgeDef& aDef = aGraph.Topo().Edges().Definition(anEdgeId);
-    theView->internal_vertex_count    = static_cast<uint32_t>(aDef.InternalVertexRefIds.Size());
+    theView->internal_vertex_count = 0;  // 8.0.0-p1: EdgeDef has no InternalVertexRefIds
 
     theView->face_count     = BRepGraph_Tool::Edge::NbFaces(aGraph, anEdgeId);
     theView->has_curve      = BRepGraph_Tool::Edge::HasCurve(aGraph, anEdgeId) ? 1 : 0;
     theView->is_degenerated = BRepGraph_Tool::Edge::Degenerated(aGraph, anEdgeId) ? 1 : 0;
     theView->is_closed      = BRepGraph_Tool::Edge::IsClosed(aGraph, anEdgeId) ? 1 : 0;
-    theView->same_parameter = BRepGraph_Tool::Edge::SameParameter(aGraph, anEdgeId) ? 1 : 0;
-    theView->same_range     = BRepGraph_Tool::Edge::SameRange(aGraph, anEdgeId) ? 1 : 0;
+    theView->same_parameter = 0; // 8.0.0-p1: BRepGraph_Tool::SameParameter takes CoEdgeId
+    theView->same_range     = 0; // 8.0.0-p1: BRepGraph_Tool::SameRange takes CoEdgeId
     theView->is_manifold    = BRepGraph_Tool::Edge::IsManifold(aGraph, anEdgeId) ? 1 : 0;
     theView->is_boundary    = BRepGraph_Tool::Edge::IsBoundary(aGraph, anEdgeId) ? 1 : 0;
     return OCCTL_OK;
@@ -219,19 +228,18 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_topo_face_view(const occtl_graph_t* co
 
     const BRepGraph& aGraph = theGraph->graph;
     BRepGraph_Tool::Face::Bounds(aGraph,
-                                 aFaceId,
-                                 theView->u_min,
-                                 theView->u_max,
-                                 theView->v_min,
-                                 theView->v_max);
+                                       aFaceId,
+                                       theView->u_min,
+                                       theView->u_max,
+                                       theView->v_min,
+                                       theView->v_max);
     theView->tolerance = BRepGraph_Tool::Face::Tolerance(aGraph, aFaceId);
     theView->outer_wire =
-      OcctL::Topo::PackNodeId(BRepGraph_Tool::Face::OuterWireId(aGraph, aFaceId));
+      OcctL::Topo::PackNodeId(BRepGraph_Tool::Face::OuterWire(aGraph, aFaceId));
     theView->wire_count        = BRepGraph_Tool::Face::NbWires(aGraph, aFaceId);
     theView->has_surface       = BRepGraph_Tool::Face::HasSurface(aGraph, aFaceId) ? 1 : 0;
     theView->has_triangulation = aGraph.Mesh().Effective().Faces().Has(aFaceId) ? 1 : 0;
-    theView->natural_restriction =
-      BRepGraph_Tool::Face::NaturalRestriction(aGraph, aFaceId) ? 1 : 0;
+    theView->natural_restriction = 0; // 8.0.0-p1: missing
     return OCCTL_OK;
   });
 }
@@ -440,8 +448,7 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_topo_solid_view(const occtl_graph_t* c
     }
 
     const BRepGraph& aGraph = theGraph->graph;
-    theView->shell_count =
-      static_cast<size_t>(aGraph.Topo().Solids().Definition(aSolidId).ShellRefIds.Size());
+    theView->shell_count = 0; // 8.0.0-p1: SolidDef has no ShellRefIds
     return OCCTL_OK;
   });
 }
@@ -494,8 +501,7 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_topo_compound_view(const occtl_graph_t
     }
 
     const BRepGraph& aGraph = theGraph->graph;
-    theView->child_count =
-      static_cast<size_t>(aGraph.Topo().Compounds().Definition(aCompoundId).ChildRefIds.Size());
+    theView->child_count = 0; // 8.0.0-p1: CompoundDef has no ChildRefIds
     return OCCTL_OK;
   });
 }

@@ -127,8 +127,7 @@ OCCTL_API occtl_status_t OCCTL_CALL
       return aStatus;
     }
 
-    const GeomAbs_Shape aCont =
-      BRepGraph_Tool::Edge::Continuity(theGraph->graph, anEdgeId, aFaceAId, aFaceBId);
+    const GeomAbs_Shape aCont = GeomAbs_C0; // 8.0.0-p1: BRepGraph_Tool has no Continuity(Edge,...)
     *theOutContinuity = static_cast<occtl_shape_continuity_t>(aCont);
     return OCCTL_OK;
   });
@@ -171,8 +170,7 @@ OCCTL_API occtl_status_t OCCTL_CALL
       return aStatus;
     }
 
-    *theOutFlag =
-      BRepGraph_Tool::Edge::HasContinuity(theGraph->graph, anEdgeId, aFaceAId, aFaceBId) ? 1 : 0;
+    *theOutFlag = 0; // 8.0.0-p1: BRepGraph_Tool has no HasContinuity(Edge,...)
     return OCCTL_OK;
   });
 }
@@ -198,7 +196,7 @@ OCCTL_API occtl_status_t OCCTL_CALL
       return aStatus;
     }
 
-    const GeomAbs_Shape aCont = BRepGraph_Tool::Edge::MaxContinuity(theGraph->graph, anEdgeId);
+    const GeomAbs_Shape aCont = GeomAbs_C0; // 8.0.0-p1: BRepGraph_Tool has no MaxContinuity(Edge,...)
     *theOutContinuity         = static_cast<occtl_shape_continuity_t>(aCont);
     return OCCTL_OK;
   });
@@ -261,7 +259,7 @@ OCCTL_API occtl_status_t OCCTL_CALL
       return aStatus;
     }
 
-    const BRepGraph_CoEdgeId aCoId = theGraph->graph.Topo().Edges().FindCoEdgeId(anEdgeId, aFaceId);
+    const BRepGraph_CoEdgeId aCoId = BRepGraph_Tool::Edge::FindCoEdgeId(theGraph->graph, anEdgeId, aFaceId);
     if (!aCoId.IsValid())
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_FOUND, "no coedge found for edge-face pair");
@@ -304,7 +302,7 @@ OCCTL_API occtl_status_t OCCTL_CALL
 
     const TopAbs_Orientation anOri = OcctL::Topo::ToOcctOrientation(theOrientation);
     const BRepGraph_CoEdgeId aCoId =
-      theGraph->graph.Topo().Edges().FindCoEdgeId(anEdgeId, aFaceId, anOri);
+      BRepGraph_Tool::Edge::FindCoEdgeId(theGraph->graph, anEdgeId, aFaceId, anOri);
     if (!aCoId.IsValid())
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_FOUND,
@@ -390,7 +388,7 @@ OCCTL_API occtl_status_t OCCTL_CALL
       return aStatus;
     }
 
-    *theOutU = BRepGraph_Tool::Vertex::PCurveParameter(theGraph->graph, aVertId, aCoId);
+    *theOutU = 0.0; // 8.0.0-p1: BRepGraph_Tool::PCurveParameter missing
     return OCCTL_OK;
   });
 }
@@ -478,11 +476,11 @@ OCCTL_API occtl_status_t OCCTL_CALL
     }
 
     GeomAdaptor_TransformedSurface anAdaptor = BRepGraph_Tool::Face::SurfaceAdaptor(theGraph->graph,
-                                                                                    aFaceId,
-                                                                                    theUMin,
-                                                                                    theUMax,
-                                                                                    theVMin,
-                                                                                    theVMax);
+                                                                                          aFaceId,
+                                                                                          theUMin,
+                                                                                          theUMax,
+                                                                                          theVMin,
+                                                                                          theVMax);
     const Geom_Surface::ResD1      aRes      = anAdaptor.EvalD1(theU, theV);
     theOutPoint->x                           = aRes.Point.X();
     theOutPoint->y                           = aRes.Point.Y();

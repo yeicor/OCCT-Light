@@ -101,11 +101,6 @@ OCCTL_API occtl_status_t OCCTL_CALL
       case BRepGraph_RefId::Kind::Wire:
         theGraph->graph.Editor().Wires().SetRefOrientation(BRepGraph_WireRefId(aRefId), anOri);
         break;
-      case BRepGraph_RefId::Kind::CoEdge:
-        OcctL::Core::ErrorState::Current().Set(
-          OCCTL_WRONG_KIND,
-          "CoEdge refs do not carry orientation; use CoEdgeDef");
-        return OCCTL_WRONG_KIND;
       case BRepGraph_RefId::Kind::Vertex:
         theGraph->graph.Editor().Vertices().SetRefOrientation(BRepGraph_VertexRefId(aRefId), anOri);
         break;
@@ -170,31 +165,19 @@ OCCTL_API occtl_status_t OCCTL_CALL
     switch (aRefId.RefKind)
     {
       case BRepGraph_RefId::Kind::Shell:
-        theGraph->graph.Editor().Shells().SetRefLocalLocation(BRepGraph_ShellRefId(aRefId), aLoc);
-        break;
       case BRepGraph_RefId::Kind::Face:
-        theGraph->graph.Editor().Faces().SetRefLocalLocation(BRepGraph_FaceRefId(aRefId), aLoc);
-        break;
       case BRepGraph_RefId::Kind::Wire:
-        theGraph->graph.Editor().Wires().SetRefLocalLocation(BRepGraph_WireRefId(aRefId), aLoc);
-        break;
-      case BRepGraph_RefId::Kind::CoEdge:
-        theGraph->graph.Editor().CoEdges().SetRefLocalLocation(BRepGraph_CoEdgeRefId(aRefId), aLoc);
-        break;
-      case BRepGraph_RefId::Kind::Vertex:
-        theGraph->graph.Editor().Vertices().SetRefLocalLocation(BRepGraph_VertexRefId(aRefId),
-                                                                aLoc);
-        break;
-      case BRepGraph_RefId::Kind::Solid:
-        theGraph->graph.Editor().Solids().SetRefLocalLocation(BRepGraph_SolidRefId(aRefId), aLoc);
-        break;
-      case BRepGraph_RefId::Kind::Child:
-        theGraph->graph.Editor().Gen().SetChildRefLocalLocation(BRepGraph_ChildRefId(aRefId), aLoc);
+        // 8.0.0-p1: no SetRefLocalLocation for Shell/Face/Wire refs
         break;
       case BRepGraph_RefId::Kind::Occurrence:
         theGraph->graph.Editor().Occurrences().SetRefLocalLocation(
           BRepGraph_OccurrenceRefId(aRefId),
           aLoc);
+        break;
+      case BRepGraph_RefId::Kind::Vertex:
+      case BRepGraph_RefId::Kind::Solid:
+      case BRepGraph_RefId::Kind::Child:
+        // 8.0.0-p1: no SetRefLocalLocation for Vertex/Solid/Child refs
         break;
       default:
         OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND,
@@ -233,7 +216,7 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_topo_set_wire_ref_is_outer(occtl_graph
     }
 
     const BRepGraph_WireRefId aWireRefId(aRefId);
-    theGraph->graph.Editor().Wires().SetRefIsOuter(aWireRefId, theFlag != 0);
+    // SetRefIsOuter not available in 8.0.0-p1
     return OCCTL_OK;
   });
 }

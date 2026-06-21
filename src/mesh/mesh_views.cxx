@@ -292,14 +292,12 @@ void appendFaceSoup(const occtl_graph* const          theGraph,
                     OcctL::Mesh::TriangleSoupBuffers& theSlot)
 {
   const BRepGraph::MeshView::CacheView::FaceOps& aFaceOps = theGraph->graph.Mesh().Cache().Faces();
-  const int aActiveIdx = aFaceOps.ActiveTriangulationIndex(theFaceId);
-  if (aActiveIdx < 0)
+  if (!aFaceOps.Has(theFaceId))
   {
     return;
   }
 
-  const occ::handle<Poly_Triangulation>& aTri =
-    aFaceOps.Triangulation(theFaceId, static_cast<uint32_t>(aActiveIdx));
+  const occ::handle<Poly_Triangulation>& aTri = aFaceOps.Triangulation(theFaceId);
   appendTriangulationSoup(aTri, theLocation, theSlot);
 }
 
@@ -1709,7 +1707,7 @@ occtl_status_t addFaceToGraph(occtl_graph_t* const theGraph,
   aBuildOptions.CreateAutoProduct = false;
   const BRepGraph::ShapesView::Result aBuildResult =
     theGraph->graph.Shapes().Add(theFace, aBuildOptions);
-  if (!aBuildResult.Ok || !aBuildResult.TopologyRoot.IsValid()
+  if (!aBuildResult.IsOk() || !aBuildResult.TopologyRoot.IsValid()
       || aBuildResult.TopologyRoot.NodeKind != BRepGraph_NodeId::Kind::Face)
   {
     OcctL::Core::ErrorState::Current().Set(
@@ -1730,7 +1728,7 @@ occtl_status_t addSolidToGraph(occtl_graph_t* const theGraph,
   aBuildOptions.CreateAutoProduct = false;
   const BRepGraph::ShapesView::Result aBuildResult =
     theGraph->graph.Shapes().Add(theShape, aBuildOptions);
-  if (!aBuildResult.Ok || !aBuildResult.TopologyRoot.IsValid()
+  if (!aBuildResult.IsOk() || !aBuildResult.TopologyRoot.IsValid()
       || aBuildResult.TopologyRoot.NodeKind != BRepGraph_NodeId::Kind::Solid)
   {
     OcctL::Core::ErrorState::Current().Set(OCCTL_TOPOLOGY_INVALID, theFailureMessage);
@@ -1909,15 +1907,12 @@ OCCTL_API occtl_status_t OCCTL_CALL
     }
 
     const BRepGraph::MeshView::CacheView::FaceOps& aFaceOps = graph->graph.Mesh().Cache().Faces();
-
-    const int aActiveIdx = aFaceOps.ActiveTriangulationIndex(aFaceId);
-    if (aActiveIdx < 0)
+    if (!aFaceOps.Has(aFaceId))
     {
       return OCCTL_NOT_FOUND;
     }
 
-    const occ::handle<Poly_Triangulation>& aTri =
-      aFaceOps.Triangulation(aFaceId, static_cast<uint32_t>(aActiveIdx));
+    const occ::handle<Poly_Triangulation>& aTri = aFaceOps.Triangulation(aFaceId);
     if (aTri.IsNull())
     {
       return OCCTL_NOT_FOUND;
@@ -1930,7 +1925,7 @@ OCCTL_API occtl_status_t OCCTL_CALL
     std::lock_guard<std::mutex> aLock(aCache.Mutex());
 
     OcctL::Mesh::FaceMeshBuffers& aSlot =
-      aCache.FindOrCreateFaceSlot(aFaceUid.bits, static_cast<uint32_t>(aActiveIdx));
+      aCache.FindOrCreateFaceSlot(aFaceUid.bits, 0u);
     if (!aSlot.myNodes.IsEmpty() && aSlot.myStamp != aStamp)
     {
       resetFaceSlot(aSlot);
@@ -1964,7 +1959,7 @@ OCCTL_API occtl_status_t OCCTL_CALL
       return aErr;
     }
 
-    *out_count = graph->graph.Mesh().Cache().Faces().NbTriangulations(aFaceId);
+    *out_count = graph->graph.Mesh().Cache().Faces().Has(aFaceId) ? 1u : 0u;
     return OCCTL_OK;
   });
 }
@@ -1989,12 +1984,12 @@ OCCTL_API occtl_status_t OCCTL_CALL
     }
 
     const BRepGraph::MeshView::CacheView::FaceOps& aFaceOps = graph->graph.Mesh().Cache().Faces();
-    if (index >= aFaceOps.NbTriangulations(aFaceId))
+    if (index != 0 || !aFaceOps.Has(aFaceId))
     {
       return OCCTL_OUT_OF_RANGE;
     }
 
-    const occ::handle<Poly_Triangulation>& aTri = aFaceOps.Triangulation(aFaceId, index);
+    const occ::handle<Poly_Triangulation>& aTri = aFaceOps.Triangulation(aFaceId);
     if (aTri.IsNull())
     {
       return OCCTL_NOT_FOUND;

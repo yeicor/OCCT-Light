@@ -14,13 +14,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 #include "GeomMath.hxx"
+#include "RepLookup.hxx"
 
 #include "../core/ErrorState.hxx"
 #include "../core/Guard.hxx"
 #include "../topo/GraphHandle.hxx"
 #include "../topo/TopoMath.hxx"
+#include "../compat/occt81/RepsCompat.hxx"
 
-#include <GeomAPI_AirfoilNACA4.hxx>
+// #include <GeomAPI_AirfoilNACA4.hxx>  // not available in OCCT 8.0.0-p1
 #include <GeomAPI_ExtremaCurveCurve.hxx>
 #include <GeomAPI_IntCS.hxx>
 #include <GeomAPI_IntSS.hxx>
@@ -125,7 +127,7 @@ occtl_status_t BuildGordonSurface(occtl_graph_t* const        theGraph,
                                       + " curve rep id is invalid"));
       return OCCTL_NOT_FOUND;
     }
-    if (aRawId.RepKind != BRepGraph_RepId::Kind::Curve3D)
+    if (aRawId.RepKind != BRepGraph_RepId::Kind::EdgeCurve3D)
     {
       OcctL::Core::ErrorState::Current().Set(
         OCCTL_WRONG_KIND,
@@ -133,9 +135,9 @@ occtl_status_t BuildGordonSurface(occtl_graph_t* const        theGraph,
                                       + " rep id is not a Curve3D"));
       return OCCTL_WRONG_KIND;
     }
-    BRepGraph_Curve3DRepId         aCurve3DId(static_cast<uint32_t>(aRawId.Index));
-    const occ::handle<Geom_Curve>& aCurve =
-      theGraph->graph.Topo().Geometry().Curve3DRep(aCurve3DId).Curve;
+    BRepGraph_EdgeCurve3DRepId         aCurve3DId(static_cast<uint32_t>(aRawId.Index));
+    const occ::handle<Geom_Curve> aCurve =
+      OcctL::Geom::CurveFromRep(theGraph->graph, aCurve3DId);
     aProfiles.SetValue(anI, aCurve);
   }
   for (int anI = 1; anI <= aGuideCount; ++anI)
@@ -149,7 +151,7 @@ occtl_status_t BuildGordonSurface(occtl_graph_t* const        theGraph,
                                       + " curve rep id is invalid"));
       return OCCTL_NOT_FOUND;
     }
-    if (aRawId.RepKind != BRepGraph_RepId::Kind::Curve3D)
+    if (aRawId.RepKind != BRepGraph_RepId::Kind::EdgeCurve3D)
     {
       OcctL::Core::ErrorState::Current().Set(
         OCCTL_WRONG_KIND,
@@ -157,9 +159,9 @@ occtl_status_t BuildGordonSurface(occtl_graph_t* const        theGraph,
                                       + " rep id is not a Curve3D"));
       return OCCTL_WRONG_KIND;
     }
-    BRepGraph_Curve3DRepId         aCurve3DId(static_cast<uint32_t>(aRawId.Index));
-    const occ::handle<Geom_Curve>& aCurve =
-      theGraph->graph.Topo().Geometry().Curve3DRep(aCurve3DId).Curve;
+    BRepGraph_EdgeCurve3DRepId         aCurve3DId(static_cast<uint32_t>(aRawId.Index));
+    const occ::handle<Geom_Curve> aCurve =
+      OcctL::Geom::CurveFromRep(theGraph->graph, aCurve3DId);
     aGuides.SetValue(anI, aCurve);
   }
 
@@ -187,7 +189,7 @@ occtl_status_t BuildGordonSurface(occtl_graph_t* const        theGraph,
     return OCCTL_GEOMETRY_INVALID;
   }
 
-  BRepGraph_SurfaceRepId aRepId = theGraph->graph.Editor().Reps().CreateSurface(aGordon.Surface());
+  BRepGraph_FaceSurfaceRepId aRepId = OcctL::Compat::CreateSurfaceRep( theGraph->graph, aGordon.Surface());
   *theOutId                     = OcctL::Topo::PackRepId(aRepId);
   return OCCTL_OK;
 }
@@ -258,35 +260,12 @@ OCCTL_API occtl_status_t OCCTL_CALL
       return OCCTL_INVALID_ARGUMENT;
     }
 
-    try
-    {
-      OCC_CATCH_SIGNALS;
-      GeomAPI_AirfoilNACA4 anAirfoil(theInfo->max_camber,
-                                     theInfo->camber_position,
-                                     theInfo->thickness,
-                                     theInfo->chord_length,
-                                     static_cast<int>(theInfo->point_count),
-                                     theInfo->finite_trailing_edge != 0,
-                                     static_cast<int>(theInfo->degree_min),
-                                     static_cast<int>(theInfo->degree_max),
-                                     theInfo->tolerance);
-      if (!anAirfoil.IsDone())
-      {
-        OcctL::Core::ErrorState::Current().Set(OCCTL_GEOMETRY_INVALID,
-                                               "GeomAPI_AirfoilNACA4 failed");
-        return OCCTL_GEOMETRY_INVALID;
-      }
-
-      BRepGraph_Curve3DRepId aRepId =
-        theGraph->graph.Editor().Reps().CreateCurve3D(anAirfoil.Curve());
-      *theOutId = OcctL::Topo::PackRepId(aRepId);
-      return OCCTL_OK;
-    }
-    catch (const Standard_Failure& anErr)
-    {
-      OcctL::Core::ErrorState::Current().Set(OCCTL_GEOMETRY_INVALID, anErr.what());
-      return OCCTL_GEOMETRY_INVALID;
-    }
+// GeomAPI_AirfoilNACA4 is not available in OCCT 8.0.0-p1
+    (void)theInfo;
+    (void)theOutId;
+    OcctL::Core::ErrorState::Current().Set(OCCTL_UNSUPPORTED,
+                                             "NACA airfoil not available in OCCT 8.0.0-p1");
+    return OCCTL_UNSUPPORTED;
   });
 }
 
@@ -347,7 +326,7 @@ OCCTL_API occtl_status_t OCCTL_CALL
       return OCCTL_GEOMETRY_INVALID;
     }
 
-    BRepGraph_Curve3DRepId aRepId = theGraph->graph.Editor().Reps().CreateCurve3D(anInterp.Curve());
+    BRepGraph_EdgeCurve3DRepId aRepId = OcctL::Compat::CreateCurve3DRep( theGraph->graph, anInterp.Curve());
     *theOutId                     = OcctL::Topo::PackRepId(aRepId);
     return OCCTL_OK;
   });
@@ -418,7 +397,7 @@ OCCTL_API occtl_status_t OCCTL_CALL
       return OCCTL_GEOMETRY_INVALID;
     }
 
-    BRepGraph_Curve3DRepId aRepId = theGraph->graph.Editor().Reps().CreateCurve3D(anApprox.Curve());
+    BRepGraph_EdgeCurve3DRepId aRepId = OcctL::Compat::CreateCurve3DRep( theGraph->graph, anApprox.Curve());
     *theOutId                     = OcctL::Topo::PackRepId(aRepId);
     return OCCTL_OK;
   });
@@ -459,14 +438,14 @@ OCCTL_API occtl_status_t OCCTL_CALL
       OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_FOUND, "curve rep id is invalid");
       return OCCTL_NOT_FOUND;
     }
-    if (aRawId.RepKind != BRepGraph_RepId::Kind::Curve3D)
+    if (aRawId.RepKind != BRepGraph_RepId::Kind::EdgeCurve3D)
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND, "rep id is not a Curve3D");
       return OCCTL_WRONG_KIND;
     }
-    BRepGraph_Curve3DRepId         aCurve3DId(static_cast<uint32_t>(aRawId.Index));
-    const occ::handle<Geom_Curve>& aCurve =
-      theGraph->graph.Topo().Geometry().Curve3DRep(aCurve3DId).Curve;
+    BRepGraph_EdgeCurve3DRepId         aCurve3DId(static_cast<uint32_t>(aRawId.Index));
+    const occ::handle<Geom_Curve> aCurve =
+      OcctL::Geom::CurveFromRep(theGraph->graph, aCurve3DId);
 
     *theOutIds   = nullptr;
     *theOutCount = 0;
@@ -572,7 +551,7 @@ OCCTL_API occtl_status_t OCCTL_CALL
       for (int anI = 1; anI <= aNb; ++anI)
       {
         const occ::handle<Geom_BezierCurve> aBezier = aConverter.Arc(anI);
-        BRepGraph_Curve3DRepId aSegId = theGraph->graph.Editor().Reps().CreateCurve3D(aBezier);
+        BRepGraph_EdgeCurve3DRepId aSegId = OcctL::Compat::CreateCurve3DRep(theGraph->graph, aBezier);
         anIds[anI - 1]                = OcctL::Topo::PackRepId(aSegId);
       }
 
@@ -615,14 +594,14 @@ OCCTL_API occtl_status_t OCCTL_CALL
       OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_FOUND, "curve_a rep id is invalid");
       return OCCTL_NOT_FOUND;
     }
-    if (aRawA.RepKind != BRepGraph_RepId::Kind::Curve3D)
+    if (aRawA.RepKind != BRepGraph_RepId::Kind::EdgeCurve3D)
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND, "curve_a rep id is not a Curve3D");
       return OCCTL_WRONG_KIND;
     }
-    BRepGraph_Curve3DRepId         aCurve3DIdA(static_cast<uint32_t>(aRawA.Index));
-    const occ::handle<Geom_Curve>& aCurveA =
-      theGraph->graph.Topo().Geometry().Curve3DRep(aCurve3DIdA).Curve;
+    BRepGraph_EdgeCurve3DRepId         aCurve3DIdA(static_cast<uint32_t>(aRawA.Index));
+    const occ::handle<Geom_Curve> aCurveA =
+      OcctL::Geom::CurveFromRep(theGraph->graph, aCurve3DIdA);
 
     const BRepGraph_RepId aRawB = OcctL::Topo::UnpackRepId(theCurveIdB);
     if (!aRawB.IsValid())
@@ -630,14 +609,14 @@ OCCTL_API occtl_status_t OCCTL_CALL
       OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_FOUND, "curve_b rep id is invalid");
       return OCCTL_NOT_FOUND;
     }
-    if (aRawB.RepKind != BRepGraph_RepId::Kind::Curve3D)
+    if (aRawB.RepKind != BRepGraph_RepId::Kind::EdgeCurve3D)
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND, "curve_b rep id is not a Curve3D");
       return OCCTL_WRONG_KIND;
     }
-    BRepGraph_Curve3DRepId         aCurve3DIdB(static_cast<uint32_t>(aRawB.Index));
-    const occ::handle<Geom_Curve>& aCurveB =
-      theGraph->graph.Topo().Geometry().Curve3DRep(aCurve3DIdB).Curve;
+    BRepGraph_EdgeCurve3DRepId         aCurve3DIdB(static_cast<uint32_t>(aRawB.Index));
+    const occ::handle<Geom_Curve> aCurveB =
+      OcctL::Geom::CurveFromRep(theGraph->graph, aCurve3DIdB);
 
     GeomAPI_ExtremaCurveCurve anExtrema(aCurveA, aCurveB);
     const int                 aNb = anExtrema.NbExtrema();
@@ -754,8 +733,8 @@ OCCTL_API occtl_status_t OCCTL_CALL
       return OCCTL_GEOMETRY_INVALID;
     }
 
-    BRepGraph_SurfaceRepId aRepId =
-      theGraph->graph.Editor().Reps().CreateSurface(aInterp.Surface());
+    BRepGraph_FaceSurfaceRepId aRepId =
+      OcctL::Compat::CreateSurfaceRep(theGraph->graph, aInterp.Surface());
     *theOutId = OcctL::Topo::PackRepId(aRepId);
     return OCCTL_OK;
   });
@@ -846,8 +825,8 @@ OCCTL_API occtl_status_t OCCTL_CALL
       return OCCTL_GEOMETRY_INVALID;
     }
 
-    BRepGraph_SurfaceRepId aRepId =
-      theGraph->graph.Editor().Reps().CreateSurface(anApprox.Surface());
+    BRepGraph_FaceSurfaceRepId aRepId =
+      OcctL::Compat::CreateSurfaceRep( theGraph->graph, anApprox.Surface());
     *theOutId = OcctL::Topo::PackRepId(aRepId);
     return OCCTL_OK;
   });
@@ -993,17 +972,17 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_surface_create_from_boundary_curves(
         OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_FOUND, "boundary curve rep id is invalid");
         return OCCTL_NOT_FOUND;
       }
-      if (aRawId.RepKind != BRepGraph_RepId::Kind::Curve3D)
+      if (aRawId.RepKind != BRepGraph_RepId::Kind::EdgeCurve3D)
       {
         OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND,
                                                "boundary curve rep id is not a Curve3D");
         return OCCTL_WRONG_KIND;
       }
-      BRepGraph_Curve3DRepId         aCurve3DId(static_cast<uint32_t>(aRawId.Index));
-      const occ::handle<Geom_Curve>& aCurve =
-        theGraph->graph.Topo().Geometry().Curve3DRep(aCurve3DId).Curve;
+      BRepGraph_EdgeCurve3DRepId         aCurve3DId(static_cast<uint32_t>(aRawId.Index));
+       const occ::handle<Geom_Curve> aCurve =
+         OcctL::Geom::CurveFromRep(theGraph->graph, aCurve3DId);
 
-      try
+       try
       {
         OCC_CATCH_SIGNALS;
         aCurves[anIndex] = GeomConvert::CurveToBSplineCurve(aCurve, Convert_RationalC1);
@@ -1044,8 +1023,8 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_surface_create_from_boundary_curves(
                                                "boundary-curve filling failed");
         return OCCTL_GEOMETRY_INVALID;
       }
-      BRepGraph_SurfaceRepId aRepId =
-        theGraph->graph.Editor().Reps().CreateSurface(aFill.Surface());
+      BRepGraph_FaceSurfaceRepId aRepId =
+        OcctL::Compat::CreateSurfaceRep( theGraph->graph, aFill.Surface());
       *theOutId = OcctL::Topo::PackRepId(aRepId);
       return OCCTL_OK;
     }
@@ -1174,14 +1153,14 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_surface_intersect_curve(const occtl_gr
       OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_FOUND, "curve rep id is invalid");
       return OCCTL_NOT_FOUND;
     }
-    if (aRawCurve.RepKind != BRepGraph_RepId::Kind::Curve3D)
+    if (aRawCurve.RepKind != BRepGraph_RepId::Kind::EdgeCurve3D)
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND, "curve rep id is not a Curve3D");
       return OCCTL_WRONG_KIND;
     }
-    BRepGraph_Curve3DRepId         aCurve3DId(static_cast<uint32_t>(aRawCurve.Index));
-    const occ::handle<Geom_Curve>& aCurve =
-      theGraph->graph.Topo().Geometry().Curve3DRep(aCurve3DId).Curve;
+    BRepGraph_EdgeCurve3DRepId         aCurve3DId(static_cast<uint32_t>(aRawCurve.Index));
+    const occ::handle<Geom_Curve> aCurve =
+      OcctL::Geom::CurveFromRep(theGraph->graph, aCurve3DId);
 
     const BRepGraph_RepId aRawSurf = OcctL::Topo::UnpackRepId(theSurfaceId);
     if (!aRawSurf.IsValid())
@@ -1189,14 +1168,14 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_surface_intersect_curve(const occtl_gr
       OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_FOUND, "surface rep id is invalid");
       return OCCTL_NOT_FOUND;
     }
-    if (aRawSurf.RepKind != BRepGraph_RepId::Kind::Surface)
+    if (aRawSurf.RepKind != BRepGraph_RepId::Kind::FaceSurface)
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND, "surface rep id is not a Surface");
       return OCCTL_WRONG_KIND;
     }
-    BRepGraph_SurfaceRepId           aSurfId(static_cast<uint32_t>(aRawSurf.Index));
-    const occ::handle<Geom_Surface>& aSurface =
-      theGraph->graph.Topo().Geometry().SurfaceRep(aSurfId).Surface;
+    BRepGraph_FaceSurfaceRepId           aSurfId(static_cast<uint32_t>(aRawSurf.Index));
+    const occ::handle<Geom_Surface> aSurface =
+      OcctL::Geom::SurfaceFromRep(theGraph->graph, aSurfId);
 
     GeomAPI_IntCS anIntersector(aCurve, aSurface);
     if (!anIntersector.IsDone())
@@ -1255,14 +1234,14 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_surface_surface_intersect(occtl_graph_
       OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_FOUND, "surface_a rep id is invalid");
       return OCCTL_NOT_FOUND;
     }
-    if (aRawA.RepKind != BRepGraph_RepId::Kind::Surface)
+    if (aRawA.RepKind != BRepGraph_RepId::Kind::FaceSurface)
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND, "surface_a rep id is not a Surface");
       return OCCTL_WRONG_KIND;
     }
-    BRepGraph_SurfaceRepId           aSurfAId(static_cast<uint32_t>(aRawA.Index));
-    const occ::handle<Geom_Surface>& aSurfaceA =
-      theGraph->graph.Topo().Geometry().SurfaceRep(aSurfAId).Surface;
+    BRepGraph_FaceSurfaceRepId           aSurfAId(static_cast<uint32_t>(aRawA.Index));
+    const occ::handle<Geom_Surface> aSurfaceA =
+      OcctL::Geom::SurfaceFromRep(theGraph->graph, aSurfAId);
 
     const BRepGraph_RepId aRawB = OcctL::Topo::UnpackRepId(theSurfaceB);
     if (!aRawB.IsValid())
@@ -1270,14 +1249,14 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_surface_surface_intersect(occtl_graph_
       OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_FOUND, "surface_b rep id is invalid");
       return OCCTL_NOT_FOUND;
     }
-    if (aRawB.RepKind != BRepGraph_RepId::Kind::Surface)
+    if (aRawB.RepKind != BRepGraph_RepId::Kind::FaceSurface)
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND, "surface_b rep id is not a Surface");
       return OCCTL_WRONG_KIND;
     }
-    BRepGraph_SurfaceRepId           aSurfBId(static_cast<uint32_t>(aRawB.Index));
-    const occ::handle<Geom_Surface>& aSurfaceB =
-      theGraph->graph.Topo().Geometry().SurfaceRep(aSurfBId).Surface;
+    BRepGraph_FaceSurfaceRepId           aSurfBId(static_cast<uint32_t>(aRawB.Index));
+    const occ::handle<Geom_Surface> aSurfaceB =
+      OcctL::Geom::SurfaceFromRep(theGraph->graph, aSurfBId);
 
     GeomAPI_IntSS anIntersector(aSurfaceA, aSurfaceB, theTolerance);
     if (!anIntersector.IsDone())
@@ -1309,7 +1288,7 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_surface_surface_intersect(occtl_graph_
     for (int anI = 1; anI <= aNb; ++anI)
     {
       const occ::handle<Geom_Curve>& aLine = anIntersector.Line(anI);
-      BRepGraph_Curve3DRepId aCurveId      = theGraph->graph.Editor().Reps().CreateCurve3D(aLine);
+      BRepGraph_EdgeCurve3DRepId aCurveId      = OcctL::Compat::CreateCurve3DRep( theGraph->graph, aLine);
       anIds[anI - 1]                       = OcctL::Topo::PackRepId(aCurveId);
     }
 
@@ -1347,7 +1326,7 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_curve_create_arc_of_circle_3pt(occtl_g
     }
 
     const Handle(Geom_TrimmedCurve) aTrimmed = aMaker.Value();
-    BRepGraph_Curve3DRepId aRepId = theGraph->graph.Editor().Reps().CreateCurve3D(aTrimmed);
+    BRepGraph_EdgeCurve3DRepId aRepId = OcctL::Compat::CreateCurve3DRep(theGraph->graph, aTrimmed);
     *theOutId                     = OcctL::Topo::PackRepId(aRepId);
     return OCCTL_OK;
   });

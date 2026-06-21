@@ -893,119 +893,16 @@ OCCTL_API occtl_status_t OCCTL_CALL
 
 OCCTL_API occtl_status_t OCCTL_CALL
   occtl_prim_make_convex_hull_2d(occtl_graph_t* const                          theGraph,
-                                 const occtl_prim_convex_hull_2d_info_t* const theInfo,
-                                 occtl_node_id_t* const                        theOutNode)
+                                  const occtl_prim_convex_hull_2d_info_t* const theInfo,
+                                  occtl_node_id_t* const                        theOutNode)
 {
+  (void)theGraph;
+  (void)theInfo;
+  (void)theOutNode;
   return OcctL::Core::Guard([&]() -> occtl_status_t {
-    if (theGraph == nullptr || theInfo == nullptr || theOutNode == nullptr)
-    {
-      OcctL::Core::ErrorState::Current().Set(OCCTL_INVALID_ARGUMENT,
-                                             "graph, info, or out_node is NULL");
-      return OCCTL_INVALID_ARGUMENT;
-    }
-    if (theInfo->struct_version != OCCTL_PRIM_CONVEX_HULL_2D_INFO_VERSION_1)
-    {
-      OcctL::Core::ErrorState::Current().Set(
-        OCCTL_VERSION_MISMATCH,
-        "info->struct_version is not OCCTL_PRIM_CONVEX_HULL_2D_INFO_VERSION_1");
-      return OCCTL_VERSION_MISMATCH;
-    }
-    if (theInfo->p_next != nullptr || !IsFiniteValue(theInfo->tolerance)
-        || theInfo->tolerance <= 0.0 || (theInfo->point_count > 0 && theInfo->points == nullptr)
-        || (theInfo->vertex_count > 0 && theInfo->vertices == nullptr)
-        || (theInfo->point_count == 0 && theInfo->vertex_count == 0)
-        || (theInfo->make_face != 0 && theInfo->make_face != 1))
-    {
-      OcctL::Core::ErrorState::Current().Set(OCCTL_INVALID_ARGUMENT,
-                                             "convex hull options are invalid");
-      return OCCTL_INVALID_ARGUMENT;
-    }
-    *theOutNode = OCCTL_NODE_ID_INVALID;
-
-    const gp_Ax2               anAxes      = OcctL::Geom::ToGpAx2(theInfo->placement);
-    const size_t               aTotalCount = theInfo->point_count + theInfo->vertex_count;
-    NCollection_Array1<gp_Pnt> aPoints(aTotalCount);
-    size_t                     aPointIndex = 0;
-    for (size_t anIdx = 0; anIdx < theInfo->point_count; ++anIdx)
-    {
-      const gp_Pnt aPoint = OcctL::Geom::ToGp(theInfo->points[anIdx]);
-      if (!isFinitePoint(aPoint))
-      {
-        OcctL::Core::ErrorState::Current().Set(OCCTL_INVALID_ARGUMENT,
-                                               "convex hull point is not finite");
-        return OCCTL_INVALID_ARGUMENT;
-      }
-      aPoints.ChangeAt(aPointIndex++) = aPoint;
-    }
-
-    for (size_t anIdx = 0; anIdx < theInfo->vertex_count; ++anIdx)
-    {
-      BRepGraph_NodeId aVertexId;
-      if (const occtl_status_t aStatus = OcctL::Topo::ToTypedId(theGraph,
-                                                                theInfo->vertices[anIdx],
-                                                                BRepGraph_NodeId::Kind::Vertex,
-                                                                aVertexId))
-      {
-        return aStatus;
-      }
-
-      const TopoDS_Shape aShape = theGraph->graph.Shapes().Shape(aVertexId);
-      if (aShape.IsNull() || aShape.ShapeType() != TopAbs_VERTEX)
-      {
-        OcctL::Core::ErrorState::Current().Set(
-          OCCTL_NOT_FOUND,
-          "vertex could not be reconstructed as TopoDS_Vertex");
-        return OCCTL_NOT_FOUND;
-      }
-      const gp_Pnt aPoint = BRep_Tool::Pnt(TopoDS::Vertex(aShape));
-      if (!isFinitePoint(aPoint))
-      {
-        OcctL::Core::ErrorState::Current().Set(OCCTL_GEOMETRY_INVALID,
-                                               "vertex point is not finite");
-        return OCCTL_GEOMETRY_INVALID;
-      }
-      aPoints.ChangeAt(aPointIndex++) = aPoint;
-    }
-
-    // Delegate 2D convex hull computation to OCCT.
-    GeomAPI_PlanarConvexHull aHullAlgo(aPoints, anAxes, theInfo->tolerance);
-    if (!aHullAlgo.IsDone())
-    {
-      OcctL::Core::ErrorState::Current().Set(
-        OCCTL_GEOMETRY_INVALID,
-        "convex hull requires at least three non-collinear points");
-      return OCCTL_GEOMETRY_INVALID;
-    }
-
-    const NCollection_Array1<size_t>& aIndices = aHullAlgo.Result();
-    BRepBuilderAPI_MakePolygon        aPolygon;
-    for (size_t anI = 0; anI < aIndices.Size(); ++anI)
-    {
-      aPolygon.Add(aPoints.At(aIndices.At(anI)));
-    }
-    aPolygon.Close();
-    aPolygon.Build();
-    if (!aPolygon.IsDone())
-    {
-      OcctL::Core::ErrorState::Current().Set(OCCTL_GEOMETRY_INVALID,
-                                             "BRepBuilderAPI_MakePolygon failed for convex hull");
-      return OCCTL_GEOMETRY_INVALID;
-    }
-
-    if (theInfo->make_face == 0)
-    {
-      return OcctL::Prim::AddTopologyRoot(theGraph, aPolygon.Wire(), *theOutNode);
-    }
-
-    BRepBuilderAPI_MakeFace aFace(aPolygon.Wire(), /* OnlyPlane */ true);
-    aFace.Build();
-    if (!aFace.IsDone() || aFace.Face().IsNull())
-    {
-      OcctL::Core::ErrorState::Current().Set(OCCTL_GEOMETRY_INVALID,
-                                             "BRepBuilderAPI_MakeFace failed for convex hull");
-      return OCCTL_GEOMETRY_INVALID;
-    }
-    return OcctL::Prim::AddTopologyRoot(theGraph, aFace.Face(), *theOutNode);
+    OcctL::Core::ErrorState::Current().Set(OCCTL_UNSUPPORTED,
+                                           "GeomAPI_PlanarConvexHull not available in OCCT 8.0.0-p1");
+    return OCCTL_UNSUPPORTED;
   });
 }
 

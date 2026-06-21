@@ -108,7 +108,7 @@ TEST_F(TopoRelatedTest, TouchIter_TouchingBoxes_ReturnsContactHits)
   TopoDS_Shape aBoxB =
     BRepPrimAPI_MakeBox(gp_Pnt(10.0, 0.0, 0.0), gp_Pnt(20.0, 20.0, 30.0)).Shape();
   BRepGraph::ShapesView::Result aRes = myGraph->graph.Shapes().Add(aBoxB);
-  ASSERT_TRUE(aRes.Ok);
+  ASSERT_TRUE(aRes.IsOk());
 
   std::vector<occtl_node_id_t> aSolids;
   for (BRepGraph_SolidIterator anIt(myGraph->graph); anIt.More(); anIt.Next())
@@ -146,7 +146,7 @@ TEST_F(TopoRelatedTest, TouchIter_SeparatedBoxes_ReturnsEmptyIterator)
   TopoDS_Shape aBoxB =
     BRepPrimAPI_MakeBox(gp_Pnt(30.0, 0.0, 0.0), gp_Pnt(40.0, 20.0, 30.0)).Shape();
   BRepGraph::ShapesView::Result aRes = myGraph->graph.Shapes().Add(aBoxB);
-  ASSERT_TRUE(aRes.Ok);
+  ASSERT_TRUE(aRes.IsOk());
 
   std::vector<occtl_node_id_t> aSolids;
   for (BRepGraph_SolidIterator anIt(myGraph->graph); anIt.More(); anIt.Next())
@@ -201,7 +201,7 @@ TEST_F(TopoRelatedTest, IntersectionIter_OverlappingBoxes_ReturnsGeneratedEdges)
 {
   TopoDS_Shape aBoxB = BRepPrimAPI_MakeBox(gp_Pnt(5.0, 5.0, 5.0), gp_Pnt(15.0, 15.0, 15.0)).Shape();
   BRepGraph::ShapesView::Result aRes = myGraph->graph.Shapes().Add(aBoxB);
-  ASSERT_TRUE(aRes.Ok);
+  ASSERT_TRUE(aRes.IsOk());
 
   std::vector<occtl_node_id_t> aSolids;
   for (BRepGraph_SolidIterator anIt(myGraph->graph); anIt.More(); anIt.Next())
@@ -240,7 +240,7 @@ TEST_F(TopoRelatedTest, IntersectionIter_DefaultOptions_IncludesOverlapFaces)
 {
   TopoDS_Shape aBoxB = BRepPrimAPI_MakeBox(gp_Pnt(5.0, 5.0, 5.0), gp_Pnt(15.0, 15.0, 15.0)).Shape();
   BRepGraph::ShapesView::Result aRes = myGraph->graph.Shapes().Add(aBoxB);
-  ASSERT_TRUE(aRes.Ok);
+  ASSERT_TRUE(aRes.IsOk());
 
   std::vector<occtl_node_id_t> aSolids;
   for (BRepGraph_SolidIterator anIt(myGraph->graph); anIt.More(); anIt.Next())
@@ -272,7 +272,7 @@ TEST_F(TopoRelatedTest, IntersectionIter_SeparatedBoxes_ReturnsEmptyIterator)
   TopoDS_Shape aBoxB =
     BRepPrimAPI_MakeBox(gp_Pnt(30.0, 0.0, 0.0), gp_Pnt(40.0, 20.0, 30.0)).Shape();
   BRepGraph::ShapesView::Result aRes = myGraph->graph.Shapes().Add(aBoxB);
-  ASSERT_TRUE(aRes.Ok);
+  ASSERT_TRUE(aRes.IsOk());
 
   std::vector<occtl_node_id_t> aSolids;
   for (BRepGraph_SolidIterator anIt(myGraph->graph); anIt.More(); anIt.Next())

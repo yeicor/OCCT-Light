@@ -21,6 +21,8 @@
 
 #include "../core/ErrorState.hxx"
 #include "../core/Guard.hxx"
+#include "../compat/occt81/RepsCompat.hxx"
+#include "RepLookup.hxx"
 #include <occtl/occtl_core.h>
 
 #include <BRepBuilderAPI_MakeFace.hxx>
@@ -132,14 +134,19 @@ occtl_status_t SurfaceFlatKnotsCommon(const occtl_graph_t* theGraph,
     OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_FOUND, "surface rep not found");
     return OCCTL_NOT_FOUND;
   }
-  if (aRawId.RepKind != BRepGraph_RepId::Kind::Surface)
+  if (aRawId.RepKind != BRepGraph_RepId::Kind::FaceSurface)
   {
     OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND, "rep is not a surface");
     return OCCTL_WRONG_KIND;
   }
-  BRepGraph_SurfaceRepId           aSurfRepId(static_cast<uint32_t>(aRawId.Index));
+  BRepGraph_FaceSurfaceRepId           aSurfRepId(static_cast<uint32_t>(aRawId.Index));
   const occ::handle<Geom_Surface>& aSurface =
-    theGraph->graph.Topo().Geometry().SurfaceRep(aSurfRepId).Surface;
+    OcctL::Geom::SurfaceFromRep(theGraph->graph, aSurfRepId);
+  if (aSurface.IsNull())
+  {
+    OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_FOUND, "surface rep not found");
+    return OCCTL_NOT_FOUND;
+  }
   const occ::handle<Geom_BSplineSurface> aBs = occ::down_cast<Geom_BSplineSurface>(aSurface);
   if (aBs.IsNull())
   {
@@ -190,15 +197,21 @@ inline const occ::handle<Geom_Surface>* UnpackSurface(const occtl_graph_t* theGr
     theOutStatus = OCCTL_NOT_FOUND;
     return nullptr;
   }
-  if (aRawId.RepKind != BRepGraph_RepId::Kind::Surface)
+  if (aRawId.RepKind != BRepGraph_RepId::Kind::FaceSurface)
   {
     OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND, "rep is not a surface");
     theOutStatus = OCCTL_WRONG_KIND;
     return nullptr;
   }
-  BRepGraph_SurfaceRepId           aSurfRepId(static_cast<uint32_t>(aRawId.Index));
+  BRepGraph_FaceSurfaceRepId           aSurfRepId(static_cast<uint32_t>(aRawId.Index));
   const occ::handle<Geom_Surface>& aSurface =
-    theGraph->graph.Topo().Geometry().SurfaceRep(aSurfRepId).Surface;
+    OcctL::Geom::SurfaceFromRep(theGraph->graph, aSurfRepId);
+  if (aSurface.IsNull())
+  {
+    OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_FOUND, "surface rep not found");
+    theOutStatus = OCCTL_NOT_FOUND;
+    return nullptr;
+  }
   theOutStatus = OCCTL_OK;
   return &aSurface;
 }
@@ -222,7 +235,7 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_surface_create_plane(occtl_graph_t*   
       return OCCTL_INVALID_ARGUMENT;
     }
     occ::handle<Geom_Plane> aPlane = new Geom_Plane(OcctL::Geom::ToGpPln(thePlane));
-    BRepGraph_SurfaceRepId  aRepId = theGraph->graph.Editor().Reps().CreateSurface(aPlane);
+    BRepGraph_FaceSurfaceRepId  aRepId = OcctL::Compat::CreateSurfaceRep( theGraph->graph, aPlane);
     *theOutId                      = OcctL::Topo::PackRepId(aRepId);
     return OCCTL_OK;
   });
@@ -249,7 +262,7 @@ OCCTL_API occtl_status_t OCCTL_CALL
     }
     occ::handle<Geom_CylindricalSurface> aCyl =
       new Geom_CylindricalSurface(OcctL::Geom::ToGpCylinder(theCylinder));
-    BRepGraph_SurfaceRepId aRepId = theGraph->graph.Editor().Reps().CreateSurface(aCyl);
+    BRepGraph_FaceSurfaceRepId aRepId = OcctL::Compat::CreateSurfaceRep( theGraph->graph, aCyl);
     *theOutId                     = OcctL::Topo::PackRepId(aRepId);
     return OCCTL_OK;
   });
@@ -276,7 +289,7 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_surface_create_cone(occtl_graph_t*    
     }
     occ::handle<Geom_ConicalSurface> aCone =
       new Geom_ConicalSurface(OcctL::Geom::ToGpCone(theCone));
-    BRepGraph_SurfaceRepId aRepId = theGraph->graph.Editor().Reps().CreateSurface(aCone);
+    BRepGraph_FaceSurfaceRepId aRepId = OcctL::Compat::CreateSurfaceRep( theGraph->graph, aCone);
     *theOutId                     = OcctL::Topo::PackRepId(aRepId);
     return OCCTL_OK;
   });
@@ -303,7 +316,7 @@ OCCTL_API occtl_status_t OCCTL_CALL
     }
     occ::handle<Geom_SphericalSurface> aSphere =
       new Geom_SphericalSurface(OcctL::Geom::ToGpSphere(theSphere));
-    BRepGraph_SurfaceRepId aRepId = theGraph->graph.Editor().Reps().CreateSurface(aSphere);
+    BRepGraph_FaceSurfaceRepId aRepId = OcctL::Compat::CreateSurfaceRep( theGraph->graph, aSphere);
     *theOutId                     = OcctL::Topo::PackRepId(aRepId);
     return OCCTL_OK;
   });
@@ -331,7 +344,7 @@ OCCTL_API occtl_status_t OCCTL_CALL
     }
     occ::handle<Geom_ToroidalSurface> aTorus =
       new Geom_ToroidalSurface(OcctL::Geom::ToGpTorus(theTorus));
-    BRepGraph_SurfaceRepId aRepId = theGraph->graph.Editor().Reps().CreateSurface(aTorus);
+    BRepGraph_FaceSurfaceRepId aRepId = OcctL::Compat::CreateSurfaceRep( theGraph->graph, aTorus);
     *theOutId                     = OcctL::Topo::PackRepId(aRepId);
     return OCCTL_OK;
   });
@@ -388,19 +401,24 @@ OCCTL_API occtl_status_t OCCTL_CALL
       return OCCTL_GEOMETRY_INVALID;
     }
     const BRepGraph_RepId aRawBasis = OcctL::Topo::UnpackRepId(theInfo->basis);
-    if (!aRawBasis.IsValid() || aRawBasis.RepKind != BRepGraph_RepId::Kind::Curve3D)
+    if (!aRawBasis.IsValid() || aRawBasis.RepKind != BRepGraph_RepId::Kind::EdgeCurve3D)
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_INVALID_ARGUMENT,
                                              "basis curve rep is invalid or not a Curve3D");
       return OCCTL_INVALID_ARGUMENT;
     }
-    BRepGraph_Curve3DRepId         aBasisId(static_cast<uint32_t>(aRawBasis.Index));
+    BRepGraph_EdgeCurve3DRepId         aBasisId(static_cast<uint32_t>(aRawBasis.Index));
     const occ::handle<Geom_Curve>& aCurve =
-      theGraph->graph.Topo().Geometry().Curve3DRep(aBasisId).Curve;
+      OcctL::Geom::CurveFromRep(theGraph->graph, aBasisId);
+    if (aCurve.IsNull())
+    {
+      OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_FOUND, "basis curve not found");
+      return OCCTL_NOT_FOUND;
+    }
     const gp_Ax1                          anAxis(OcctL::Geom::ToGp(theInfo->axis.location),
                                                  OcctL::Geom::ToGp(theInfo->axis.direction));
     occ::handle<Geom_SurfaceOfRevolution> aRev = new Geom_SurfaceOfRevolution(aCurve, anAxis);
-    BRepGraph_SurfaceRepId aRepId = theGraph->graph.Editor().Reps().CreateSurface(aRev);
+    BRepGraph_FaceSurfaceRepId aRepId = OcctL::Compat::CreateSurfaceRep( theGraph->graph, aRev);
     *theOutId                     = OcctL::Topo::PackRepId(aRepId);
     return OCCTL_OK;
   });
@@ -447,15 +465,20 @@ OCCTL_API occtl_status_t OCCTL_CALL
       return OCCTL_INVALID_ARGUMENT;
     }
     const BRepGraph_RepId aRawBasis = OcctL::Topo::UnpackRepId(theInfo->basis);
-    if (!aRawBasis.IsValid() || aRawBasis.RepKind != BRepGraph_RepId::Kind::Curve3D)
+    if (!aRawBasis.IsValid() || aRawBasis.RepKind != BRepGraph_RepId::Kind::EdgeCurve3D)
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_INVALID_ARGUMENT,
                                              "basis curve rep is invalid or not a Curve3D");
       return OCCTL_INVALID_ARGUMENT;
     }
-    BRepGraph_Curve3DRepId         aBasisId(static_cast<uint32_t>(aRawBasis.Index));
+    BRepGraph_EdgeCurve3DRepId         aBasisId(static_cast<uint32_t>(aRawBasis.Index));
     const occ::handle<Geom_Curve>& aCurve =
-      theGraph->graph.Topo().Geometry().Curve3DRep(aBasisId).Curve;
+      OcctL::Geom::CurveFromRep(theGraph->graph, aBasisId);
+    if (aCurve.IsNull())
+    {
+      OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_FOUND, "basis curve not found");
+      return OCCTL_NOT_FOUND;
+    }
     const gp_Vec aDir = OcctL::Geom::ToGp(theInfo->direction);
     if (aDir.SquareMagnitude() <= Precision::SquareConfusion())
     {
@@ -465,7 +488,7 @@ OCCTL_API occtl_status_t OCCTL_CALL
     }
     occ::handle<Geom_SurfaceOfLinearExtrusion> anExtrusion =
       new Geom_SurfaceOfLinearExtrusion(aCurve, gp_Dir(aDir));
-    BRepGraph_SurfaceRepId aRepId = theGraph->graph.Editor().Reps().CreateSurface(anExtrusion);
+    BRepGraph_FaceSurfaceRepId aRepId = OcctL::Compat::CreateSurfaceRep( theGraph->graph, anExtrusion);
     *theOutId                     = OcctL::Topo::PackRepId(aRepId);
     return OCCTL_OK;
   });
@@ -518,15 +541,20 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_surface_create_rectangular_trimmed(
       return OCCTL_INVALID_ARGUMENT;
     }
     const BRepGraph_RepId aRawBasis = OcctL::Topo::UnpackRepId(theInfo->basis);
-    if (!aRawBasis.IsValid() || aRawBasis.RepKind != BRepGraph_RepId::Kind::Surface)
+    if (!aRawBasis.IsValid() || aRawBasis.RepKind != BRepGraph_RepId::Kind::FaceSurface)
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_INVALID_ARGUMENT,
                                              "basis surface rep is invalid or not a surface");
       return OCCTL_INVALID_ARGUMENT;
     }
-    BRepGraph_SurfaceRepId           aBasisSurfId(static_cast<uint32_t>(aRawBasis.Index));
+    BRepGraph_FaceSurfaceRepId           aBasisSurfId(static_cast<uint32_t>(aRawBasis.Index));
     const occ::handle<Geom_Surface>& aBasisSurface =
-      theGraph->graph.Topo().Geometry().SurfaceRep(aBasisSurfId).Surface;
+      OcctL::Geom::SurfaceFromRep(theGraph->graph, aBasisSurfId);
+    if (aBasisSurface.IsNull())
+    {
+      OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_FOUND, "basis surface not found");
+      return OCCTL_NOT_FOUND;
+    }
     if (theInfo->u_last <= theInfo->u_first || theInfo->v_last <= theInfo->v_first)
     {
       OcctL::Core::ErrorState::Current().Set(
@@ -550,7 +578,7 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_surface_create_rectangular_trimmed(
                                          theInfo->v_last,
                                          theInfo->u_sense == 1,
                                          theInfo->v_sense == 1);
-    BRepGraph_SurfaceRepId aRepId = theGraph->graph.Editor().Reps().CreateSurface(aTrim);
+    BRepGraph_FaceSurfaceRepId aRepId = OcctL::Compat::CreateSurfaceRep(theGraph->graph,aTrim);
     *theOutId                     = OcctL::Topo::PackRepId(aRepId);
     return OCCTL_OK;
   });
@@ -597,18 +625,23 @@ OCCTL_API occtl_status_t OCCTL_CALL
       return OCCTL_INVALID_ARGUMENT;
     }
     const BRepGraph_RepId aRawBasis = OcctL::Topo::UnpackRepId(theInfo->basis);
-    if (!aRawBasis.IsValid() || aRawBasis.RepKind != BRepGraph_RepId::Kind::Surface)
+    if (!aRawBasis.IsValid() || aRawBasis.RepKind != BRepGraph_RepId::Kind::FaceSurface)
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_INVALID_ARGUMENT,
                                              "basis surface rep is invalid or not a surface");
       return OCCTL_INVALID_ARGUMENT;
     }
-    BRepGraph_SurfaceRepId           aBasisSurfId(static_cast<uint32_t>(aRawBasis.Index));
+    BRepGraph_FaceSurfaceRepId           aBasisSurfId(static_cast<uint32_t>(aRawBasis.Index));
     const occ::handle<Geom_Surface>& aBasisSurface =
-      theGraph->graph.Topo().Geometry().SurfaceRep(aBasisSurfId).Surface;
+      OcctL::Geom::SurfaceFromRep(theGraph->graph, aBasisSurfId);
+    if (aBasisSurface.IsNull())
+    {
+      OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_FOUND, "basis surface not found");
+      return OCCTL_NOT_FOUND;
+    }
     occ::handle<Geom_OffsetSurface> anOffset =
       new Geom_OffsetSurface(aBasisSurface, theInfo->offset);
-    BRepGraph_SurfaceRepId aRepId = theGraph->graph.Editor().Reps().CreateSurface(anOffset);
+    BRepGraph_FaceSurfaceRepId aRepId = OcctL::Compat::CreateSurfaceRep( theGraph->graph, anOffset);
     *theOutId                     = OcctL::Topo::PackRepId(aRepId);
     return OCCTL_OK;
   });
@@ -760,7 +793,7 @@ OCCTL_API occtl_status_t OCCTL_CALL
                                          theInfo->is_v_periodic != 0);
     }
 
-    BRepGraph_SurfaceRepId aRepId = theGraph->graph.Editor().Reps().CreateSurface(aBspline);
+    BRepGraph_FaceSurfaceRepId aRepId = OcctL::Compat::CreateSurfaceRep( theGraph->graph, aBspline);
     *theOutId                     = OcctL::Topo::PackRepId(aRepId);
     return OCCTL_OK;
   });
@@ -2158,7 +2191,7 @@ OCCTL_API occtl_status_t OCCTL_CALL
     {
       aBezier = new Geom_BezierSurface(aPoles);
     }
-    BRepGraph_SurfaceRepId aRepId = theGraph->graph.Editor().Reps().CreateSurface(aBezier);
+    BRepGraph_FaceSurfaceRepId aRepId = OcctL::Compat::CreateSurfaceRep(theGraph->graph, aBezier);
     *theOutId                     = OcctL::Topo::PackRepId(aRepId);
     return OCCTL_OK;
   });
@@ -2195,7 +2228,7 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_surface_reverse(occtl_graph_t*  theGra
       return aStatus;
     }
     occ::handle<Geom_Surface> aReversed = (*aSurface)->UReversed();
-    BRepGraph_SurfaceRepId    aRepId    = theGraph->graph.Editor().Reps().CreateSurface(aReversed);
+    BRepGraph_FaceSurfaceRepId    aRepId    = OcctL::Compat::CreateSurfaceRep(theGraph->graph, aReversed);
     *theOutId                           = OcctL::Topo::PackRepId(aRepId);
     return OCCTL_OK;
   });
@@ -2224,7 +2257,7 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_surface_transformed(occtl_graph_t*    
     gp_Trsf                   aTrsf = OcctL::Geom::ToGpTrsf(theTransform);
     occ::handle<Geom_Surface> aTransformed =
       occ::handle<Geom_Surface>::DownCast((*aSurface)->Transformed(aTrsf));
-    BRepGraph_SurfaceRepId aRepId = theGraph->graph.Editor().Reps().CreateSurface(aTransformed);
+    BRepGraph_FaceSurfaceRepId aRepId = OcctL::Compat::CreateSurfaceRep(theGraph->graph, aTransformed);
     *theOutId                     = OcctL::Topo::PackRepId(aRepId);
     return OCCTL_OK;
   });
@@ -2254,7 +2287,7 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_surface_translated(occtl_graph_t*  the
     aTrsf.SetTranslation(OcctL::Geom::ToGp(theDelta));
     occ::handle<Geom_Surface> aTranslated =
       occ::handle<Geom_Surface>::DownCast((*aSurface)->Transformed(aTrsf));
-    BRepGraph_SurfaceRepId aRepId = theGraph->graph.Editor().Reps().CreateSurface(aTranslated);
+    BRepGraph_FaceSurfaceRepId aRepId = OcctL::Compat::CreateSurfaceRep(theGraph->graph, aTranslated);
     *theOutId                     = OcctL::Topo::PackRepId(aRepId);
     return OCCTL_OK;
   });
@@ -2285,7 +2318,7 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_surface_rotated(occtl_graph_t*        
     aTrsf.SetRotation(OcctL::Geom::ToGpAx1(theAxis), theAngle);
     occ::handle<Geom_Surface> aRotated =
       occ::handle<Geom_Surface>::DownCast((*aSurface)->Transformed(aTrsf));
-    BRepGraph_SurfaceRepId aRepId = theGraph->graph.Editor().Reps().CreateSurface(aRotated);
+    BRepGraph_FaceSurfaceRepId aRepId = OcctL::Compat::CreateSurfaceRep(theGraph->graph, aRotated);
     *theOutId                     = OcctL::Topo::PackRepId(aRepId);
     return OCCTL_OK;
   });
@@ -2321,7 +2354,7 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_surface_scaled(occtl_graph_t*  theGrap
     aTrsf.SetScale(OcctL::Geom::ToGp(theOrigin), theFactor);
     occ::handle<Geom_Surface> aScaled =
       occ::handle<Geom_Surface>::DownCast((*aSurface)->Transformed(aTrsf));
-    BRepGraph_SurfaceRepId aRepId = theGraph->graph.Editor().Reps().CreateSurface(aScaled);
+    BRepGraph_FaceSurfaceRepId aRepId = OcctL::Compat::CreateSurfaceRep(theGraph->graph, aScaled);
     *theOutId                     = OcctL::Topo::PackRepId(aRepId);
     return OCCTL_OK;
   });

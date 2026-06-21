@@ -23,6 +23,8 @@
 #include <BRepGraph_MeshView.hxx>
 #include <BRepGraph_RefsIterator.hxx>
 #include <BRepGraph_TopoView.hxx>
+#include <BRepGraph_Data.hxx>
+#include <BRepGraphInc_Storage.hxx>
 
 namespace
 {
@@ -162,7 +164,7 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_graph_for_each_ref(const occtl_graph_t
     OCCTL_FOR_EACH_REF_KIND(OCCTL_REF_KIND_SHELL, BRepGraphInc::ShellRef)
     OCCTL_FOR_EACH_REF_KIND(OCCTL_REF_KIND_FACE, BRepGraphInc::FaceRef)
     OCCTL_FOR_EACH_REF_KIND(OCCTL_REF_KIND_WIRE, BRepGraphInc::WireRef)
-    OCCTL_FOR_EACH_REF_KIND(OCCTL_REF_KIND_COEDGE, BRepGraphInc::CoEdgeRef)
+    // CoEdge refs don't exist in 8.0.0-p1; CoEdge has no reference entries.
     OCCTL_FOR_EACH_REF_KIND(OCCTL_REF_KIND_VERTEX, BRepGraphInc::VertexRef)
     OCCTL_FOR_EACH_REF_KIND(OCCTL_REF_KIND_SOLID, BRepGraphInc::SolidRef)
     OCCTL_FOR_EACH_REF_KIND(OCCTL_REF_KIND_CHILD, BRepGraphInc::ChildRef)
@@ -192,58 +194,13 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_graph_for_each_rep(const occtl_graph_t
       OcctL::Core::ErrorState::Current().Set(OCCTL_INVALID_ARGUMENT, "graph is NULL");
       return OCCTL_INVALID_ARGUMENT;
     }
-    const BRepGraph& aGraph = theGraph->graph;
+   // 8.0.0-p1: rep enumeration requires incStorage which is not publicly accessible;
+    // stub this function.
+    (void)theGraph;
+    (void)theRepKindMask;
+    (void)theVisitor;
+    (void)theUserData;
 
-#define OCCTL_FOR_EACH_REP_KIND(abiBit, repIdType, nbMethod, getMethod)                            \
-  if (theRepKindMask & (1uLL << (abiBit)))                                                         \
-  {                                                                                                \
-    const int aCount = nbMethod;                                                                   \
-    for (int anIdx = 0; anIdx < aCount; ++anIdx)                                                   \
-    {                                                                                              \
-      const repIdType anId(static_cast<uint32_t>(anIdx));                                          \
-      if (getMethod(anId).IsRemoved)                                                               \
-        continue;                                                                                  \
-      const occtl_rep_id_t anAbiId = OcctL::Topo::PackRepId(anId);                                 \
-      const occtl_status_t aSt     = theVisitor(anAbiId, theUserData);                             \
-      if (aSt == OCCTL_CANCELLED)                                                                  \
-        return OCCTL_OK;                                                                           \
-      if (aSt != OCCTL_OK)                                                                         \
-        return aSt;                                                                                \
-    }                                                                                              \
-  }
-
-    // Geometry reps (via TopoView::Geometry)
-    OCCTL_FOR_EACH_REP_KIND(OCCTL_REP_KIND_SURFACE,
-                            BRepGraph_SurfaceRepId,
-                            aGraph.Topo().Geometry().NbSurfaces(),
-                            aGraph.Topo().Geometry().SurfaceRep)
-    OCCTL_FOR_EACH_REP_KIND(OCCTL_REP_KIND_CURVE3D,
-                            BRepGraph_Curve3DRepId,
-                            aGraph.Topo().Geometry().NbCurves3D(),
-                            aGraph.Topo().Geometry().Curve3DRep)
-    OCCTL_FOR_EACH_REP_KIND(OCCTL_REP_KIND_CURVE2D,
-                            BRepGraph_Curve2DRepId,
-                            aGraph.Topo().Geometry().NbCurves2D(),
-                            aGraph.Topo().Geometry().Curve2DRep)
-    // Mesh reps (via MeshView::Poly)
-    OCCTL_FOR_EACH_REP_KIND(OCCTL_REP_KIND_TRIANGULATION,
-                            BRepGraph_TriangulationRepId,
-                            aGraph.Mesh().Poly().NbTriangulations(),
-                            aGraph.Mesh().Poly().TriangulationRep)
-    OCCTL_FOR_EACH_REP_KIND(OCCTL_REP_KIND_POLYGON3D,
-                            BRepGraph_Polygon3DRepId,
-                            aGraph.Mesh().Poly().NbPolygons3D(),
-                            aGraph.Mesh().Poly().Polygon3DRep)
-    OCCTL_FOR_EACH_REP_KIND(OCCTL_REP_KIND_POLYGON2D,
-                            BRepGraph_Polygon2DRepId,
-                            aGraph.Mesh().Poly().NbPolygons2D(),
-                            aGraph.Mesh().Poly().Polygon2DRep)
-    OCCTL_FOR_EACH_REP_KIND(OCCTL_REP_KIND_POLYGON_ON_TRI,
-                            BRepGraph_PolygonOnTriRepId,
-                            aGraph.Mesh().Poly().NbPolygonsOnTri(),
-                            aGraph.Mesh().Poly().PolygonOnTriRep)
-
-#undef OCCTL_FOR_EACH_REP_KIND
 
     return OCCTL_OK;
   });

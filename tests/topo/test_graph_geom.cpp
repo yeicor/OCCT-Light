@@ -712,7 +712,7 @@ TEST(TopoVeneerTest, Smoke_CompilesAndMatchesCAbi)
   // Import a box internally via OCCT APIs.
   TopoDS_Shape                  aBox    = BRepPrimAPI_MakeBox(10.0, 20.0, 30.0).Shape();
   BRepGraph::ShapesView::Result aResult = aVeneer.get()->graph.Shapes().Add(aBox);
-  ASSERT_TRUE(aResult.Ok);
+  ASSERT_TRUE(aResult.IsOk());
 
   // Find first vertex via OCCT iterator.
   BRepGraph_VertexIterator anIt(aVeneer.get()->graph);

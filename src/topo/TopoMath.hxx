@@ -129,15 +129,14 @@ inline bool TryToOcctNodeKind(const occtl_node_kind_t theKind, BRepGraph_NodeId:
 //! @return ABI ref kind, or OCCTL_REF_KIND_INVALID for out-of-range values.
 inline occtl_ref_kind_t ToAbiRefKind(const BRepGraph_RefId::Kind theKind)
 {
-  static constexpr std::array<occtl_ref_kind_t, 8> THE_MAP = {
+  static constexpr std::array<occtl_ref_kind_t, 7> THE_MAP = {
     OCCTL_REF_KIND_SHELL,     // Shell      = 0
     OCCTL_REF_KIND_FACE,      // Face       = 1
     OCCTL_REF_KIND_WIRE,      // Wire       = 2
-    OCCTL_REF_KIND_COEDGE,    // CoEdge     = 3
-    OCCTL_REF_KIND_VERTEX,    // Vertex     = 4
-    OCCTL_REF_KIND_SOLID,     // Solid      = 5
-    OCCTL_REF_KIND_CHILD,     // Child      = 6
-    OCCTL_REF_KIND_OCCURRENCE // Occurrence = 7
+    OCCTL_REF_KIND_VERTEX,    // Vertex     = 3
+    OCCTL_REF_KIND_SOLID,     // Solid      = 4
+    OCCTL_REF_KIND_CHILD,     // Child      = 5
+    OCCTL_REF_KIND_OCCURRENCE // Occurrence = 6
   };
   const int aVal = static_cast<int>(theKind);
   return (aVal >= 0 && aVal < static_cast<int>(THE_MAP.size())) ? THE_MAP[static_cast<size_t>(aVal)]
@@ -160,9 +159,6 @@ inline bool TryToOcctRefKind(const occtl_ref_kind_t theKind, BRepGraph_RefId::Ki
       return true;
     case OCCTL_REF_KIND_WIRE:
       theOut = BRepGraph_RefId::Kind::Wire;
-      return true;
-    case OCCTL_REF_KIND_COEDGE:
-      theOut = BRepGraph_RefId::Kind::CoEdge;
       return true;
     case OCCTL_REF_KIND_VERTEX:
       theOut = BRepGraph_RefId::Kind::Vertex;
@@ -187,13 +183,13 @@ inline bool TryToOcctRefKind(const occtl_ref_kind_t theKind, BRepGraph_RefId::Ki
 inline occtl_rep_kind_t ToAbiRepKind(const BRepGraph_RepId::Kind theKind)
 {
   static constexpr std::array<occtl_rep_kind_t, 7> THE_MAP = {
-    OCCTL_REP_KIND_SURFACE,       // Surface       = 0
-    OCCTL_REP_KIND_CURVE3D,       // Curve3D       = 1
+    OCCTL_REP_KIND_CURVE3D,       // Curve3D       = 0
+    OCCTL_REP_KIND_POLYGON3D,     // Polygon3D     = 1
     OCCTL_REP_KIND_CURVE2D,       // Curve2D       = 2
-    OCCTL_REP_KIND_TRIANGULATION, // Triangulation = 3
-    OCCTL_REP_KIND_POLYGON3D,     // Polygon3D     = 4
-    OCCTL_REP_KIND_POLYGON2D,     // Polygon2D     = 5
-    OCCTL_REP_KIND_POLYGON_ON_TRI // PolygonOnTri  = 6
+    OCCTL_REP_KIND_POLYGON2D,     // Polygon2D     = 3
+    OCCTL_REP_KIND_POLYGON_ON_TRI,// PolygonOnTri  = 4
+    OCCTL_REP_KIND_SURFACE,       // Surface       = 5
+    OCCTL_REP_KIND_TRIANGULATION  // Triangulation = 6
   };
   const int aVal = static_cast<int>(theKind);
   return (aVal >= 0 && aVal < static_cast<int>(THE_MAP.size())) ? THE_MAP[static_cast<size_t>(aVal)]
@@ -209,25 +205,25 @@ inline bool TryToOcctRepKind(const occtl_rep_kind_t theKind, BRepGraph_RepId::Ki
   switch (theKind)
   {
     case OCCTL_REP_KIND_SURFACE:
-      theOut = BRepGraph_RepId::Kind::Surface;
+      theOut = BRepGraph_RepId::Kind::FaceSurface;
       return true;
     case OCCTL_REP_KIND_CURVE3D:
-      theOut = BRepGraph_RepId::Kind::Curve3D;
+      theOut = BRepGraph_RepId::Kind::EdgeCurve3D;
       return true;
     case OCCTL_REP_KIND_CURVE2D:
-      theOut = BRepGraph_RepId::Kind::Curve2D;
+      theOut = BRepGraph_RepId::Kind::CoEdgeCurve2D;
       return true;
     case OCCTL_REP_KIND_TRIANGULATION:
-      theOut = BRepGraph_RepId::Kind::Triangulation;
+      theOut = BRepGraph_RepId::Kind::FaceTriangulation;
       return true;
     case OCCTL_REP_KIND_POLYGON3D:
-      theOut = BRepGraph_RepId::Kind::Polygon3D;
+      theOut = BRepGraph_RepId::Kind::EdgePolygon3D;
       return true;
     case OCCTL_REP_KIND_POLYGON2D:
-      theOut = BRepGraph_RepId::Kind::Polygon2D;
+      theOut = BRepGraph_RepId::Kind::CoEdgePolygon2D;
       return true;
     case OCCTL_REP_KIND_POLYGON_ON_TRI:
-      theOut = BRepGraph_RepId::Kind::PolygonOnTri;
+      theOut = BRepGraph_RepId::Kind::CoEdgePolygonOnTri;
       return true;
     default:
       return false;
@@ -333,8 +329,8 @@ inline occtl_uid_t PackUID(const BRepGraph_UID& theUid)
   if (!theUid.IsValid())
     return {0};
 
-  const uint64_t aKind    = static_cast<uint64_t>(ToAbiNodeKind(theUid.Kind())) << THE_KIND_SHIFT;
-  const uint64_t aCounter = static_cast<uint64_t>(theUid.Counter()) & THE_PAYLOAD_MASK;
+  const uint64_t aKind    = static_cast<uint64_t>(ToAbiNodeKind(theUid.Kind)) << THE_KIND_SHIFT;
+  const uint64_t aCounter = static_cast<uint64_t>(theUid.Counter) & THE_PAYLOAD_MASK;
   return {aKind | aCounter};
 }
 
@@ -357,7 +353,7 @@ inline BRepGraph_UID UnpackUID(const occtl_uid_t theUid)
   if (aCounter == 0)
     return BRepGraph_UID::Invalid();
 
-  return BRepGraph_UID(aOcctKind, aCounter, /* generation */ 0u);
+  return BRepGraph_UID(aOcctKind, static_cast<uint32_t>(aCounter));
 }
 
 //! @brief Packs an OCCT RefUID into the ABI 64-bit representation.
@@ -368,8 +364,8 @@ inline occtl_ref_uid_t PackRefUID(const BRepGraph_RefUID& theUid)
   if (!theUid.IsValid())
     return {0};
 
-  const uint64_t aKind    = static_cast<uint64_t>(ToAbiRefKind(theUid.Kind())) << THE_KIND_SHIFT;
-  const uint64_t aCounter = static_cast<uint64_t>(theUid.Counter()) & THE_PAYLOAD_MASK;
+  const uint64_t aKind    = static_cast<uint64_t>(ToAbiRefKind(theUid.Kind)) << THE_KIND_SHIFT;
+  const uint64_t aCounter = static_cast<uint64_t>(theUid.Counter) & THE_PAYLOAD_MASK;
   return {aKind | aCounter};
 }
 
@@ -390,7 +386,7 @@ inline BRepGraph_RefUID UnpackRefUID(const occtl_ref_uid_t theUid)
   if (aCounter == 0)
     return BRepGraph_RefUID::Invalid();
 
-  return BRepGraph_RefUID(aOcctKind, aCounter, /* generation */ 0u);
+  return BRepGraph_RefUID(aOcctKind, static_cast<uint32_t>(aCounter));
 }
 
 //! @brief Packs an OCCT RepUID into the ABI 64-bit representation.

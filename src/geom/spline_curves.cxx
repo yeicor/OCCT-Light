@@ -17,6 +17,7 @@
 #include "../topo/TopoMath.hxx"
 #include "GeomMath.hxx"
 #include "RepLookup.hxx"
+#include "../compat/occt81/RepsCompat.hxx"
 
 #include "../core/ErrorState.hxx"
 #include "../core/Guard.hxx"
@@ -192,7 +193,7 @@ OCCTL_API occtl_status_t OCCTL_CALL
         new Geom_BSplineCurve(aPoles, aKnots, aMults, theInfo->degree, theInfo->is_periodic != 0);
     }
 
-    BRepGraph_Curve3DRepId aRepId = theGraph->graph.Editor().Reps().CreateCurve3D(aBspline);
+    BRepGraph_EdgeCurve3DRepId aRepId = OcctL::Compat::CreateCurve3DRep( theGraph->graph, aBspline);
     *theOutCurve                  = OcctL::Topo::PackRepId(aRepId);
     return OCCTL_OK;
   });
@@ -272,7 +273,7 @@ OCCTL_API occtl_status_t OCCTL_CALL
       aBezier = new Geom_BezierCurve(aPoles);
     }
 
-    BRepGraph_Curve3DRepId aRepId = theGraph->graph.Editor().Reps().CreateCurve3D(aBezier);
+    BRepGraph_EdgeCurve3DRepId aRepId = OcctL::Compat::CreateCurve3DRep(theGraph->graph, aBezier);
     *theOutCurve                  = OcctL::Topo::PackRepId(aRepId);
     return OCCTL_OK;
   });
@@ -338,7 +339,7 @@ OCCTL_API occtl_status_t OCCTL_CALL
       OcctL::Geom::CurveFromRep(theGraph, theInfo->basis);
     occ::handle<Geom_TrimmedCurve> aTrimmed =
       new Geom_TrimmedCurve(aBasisCurve, theInfo->u_first, theInfo->u_last, aSense);
-    BRepGraph_Curve3DRepId aRepId = theGraph->graph.Editor().Reps().CreateCurve3D(aTrimmed);
+    BRepGraph_EdgeCurve3DRepId aRepId = OcctL::Compat::CreateCurve3DRep(theGraph->graph, aTrimmed);
     *theOutCurve                  = OcctL::Topo::PackRepId(aRepId);
     return OCCTL_OK;
   });
@@ -429,7 +430,7 @@ OCCTL_API occtl_status_t OCCTL_CALL
       OcctL::Geom::CurveFromRep(theGraph, theInfo->basis);
     occ::handle<Geom_OffsetCurve> anOffset =
       new Geom_OffsetCurve(aBasisCurve, theInfo->offset, gp_Dir(aDir));
-    BRepGraph_Curve3DRepId aRepId = theGraph->graph.Editor().Reps().CreateCurve3D(anOffset);
+    BRepGraph_EdgeCurve3DRepId aRepId = OcctL::Compat::CreateCurve3DRep( theGraph->graph, anOffset);
     *theOutCurve                  = OcctL::Topo::PackRepId(aRepId);
     return OCCTL_OK;
   });

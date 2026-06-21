@@ -191,7 +191,7 @@ OCCTL_API occtl_status_t OCCTL_CALL
     aBuildOptions.CreateAutoProduct = false;
     const BRepGraph::ShapesView::Result aBuildResult =
       aGraph->graph.Shapes().Add(aFace, aBuildOptions);
-    if (!aBuildResult.Ok || !aBuildResult.TopologyRoot.IsValid()
+    if (!aBuildResult.IsOk() || !aBuildResult.TopologyRoot.IsValid()
         || aBuildResult.TopologyRoot.NodeKind != BRepGraph_NodeId::Kind::Face)
     {
       OcctL::Core::ErrorState::Current().Set(
@@ -200,12 +200,9 @@ OCCTL_API occtl_status_t OCCTL_CALL
       return OCCTL_TOPOLOGY_INVALID;
     }
 
-    const BRepGraph_FaceId             aFaceId(aBuildResult.TopologyRoot);
-    const BRepGraph_TriangulationRepId aTriRepId(
-      aGraph->graph.Editor().Reps().CreateTriangulation(aTri));
-    aGraph->graph.Editor().Faces().SetTriangulationRep(aFaceId, aTriRepId);
-    aGraph->graph.Mesh().Editor().Faces().AppendCachedTriangulation(aFaceId, aTriRepId);
-    aGraph->graph.Mesh().Editor().Faces().SetCachedActiveTriangulationIndex(aFaceId, 0);
+    const BRepGraph_FaceId aFaceId(aBuildResult.TopologyRoot);
+    aGraph->graph.Editor().Faces().SetPersistentTriangulation(aFaceId, aTri);
+    aGraph->graph.Mesh().Editor().Faces().SetCachedTriangulation(aFaceId, aTri);
 
     *theOutRoot  = OcctL::Topo::PackNodeId(aBuildResult.TopologyRoot);
     *theOutGraph = aGraph.release();

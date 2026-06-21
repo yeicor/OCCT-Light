@@ -21,7 +21,6 @@
 #include <BRepGraph_Iterator.hxx>
 #include <BRepGraph_Tool.hxx>
 #include <BRepGraph_TopoView.hxx>
-#include <BRepGraph_WireExplorer.hxx>
 #include <NCollection_LinearVector.hxx>
 #include <TopAbs_Orientation.hxx>
 
@@ -54,8 +53,7 @@ struct occtl_node_iter
                BRepGraph_DefsCoEdgeOfWire,
                BRepGraph_DefsEdgeOfWire,
                BRepGraph_DefsVertexOfEdge,
-               BRepGraph_DefsOccurrenceOfProduct,
-               BRepGraph_WireExplorer>
+                BRepGraph_DefsOccurrenceOfProduct>
     impl;
 };
 
@@ -90,8 +88,7 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_node_iter_next(occtl_node_iter_t* cons
             *theOutId = OCCTL_NODE_ID_INVALID;
             return OCCTL_NOT_FOUND;
           }
-          if constexpr (std::is_same_v<std::decay_t<decltype(aImpl)>, BRepGraph_RootProductIterator>
-                        || std::is_same_v<std::decay_t<decltype(aImpl)>, BRepGraph_WireExplorer>)
+          if constexpr (std::is_same_v<std::decay_t<decltype(aImpl)>, BRepGraph_RootProductIterator>)
           {
             *theOutId = OcctL::Topo::PackNodeId(aImpl.Current());
           }
@@ -563,7 +560,7 @@ OCCTL_API occtl_status_t OCCTL_CALL
       return aErr;
     }
     *theOutCount = static_cast<uint32_t>(
-      theGraph->graph.Topo().Solids().Definition(aSolidId).ShellRefIds.Size());
+      theGraph->graph.Topo().Solids().Relations(aSolidId).ShellRefIds.Size());
     return OCCTL_OK;
   });
 }
@@ -610,8 +607,7 @@ OCCTL_API occtl_status_t OCCTL_CALL
     {
       return aErr;
     }
-    const BRepGraphInc::EdgeDef& aDef = theGraph->graph.Topo().Edges().Definition(anEdgeId);
-    *theOutCount = 2u + static_cast<uint32_t>(aDef.InternalVertexRefIds.Size());
+    *theOutCount = 2u;
     return OCCTL_OK;
   });
 }
@@ -636,7 +632,7 @@ OCCTL_API occtl_status_t OCCTL_CALL
       return aErr;
     }
     *theOutCount = static_cast<uint32_t>(
-      theGraph->graph.Topo().Products().Definition(aProductId).OccurrenceRefIds.Size());
+      theGraph->graph.Topo().Products().Relations(aProductId).OccurrenceRefIds.Size());
     return OCCTL_OK;
   });
 }
@@ -648,23 +644,13 @@ OCCTL_API occtl_status_t OCCTL_CALL
                                   const occtl_node_id_t      theWire,
                                   occtl_node_iter_t** const  theOutIter)
 {
+  (void)theGraph;
+  (void)theWire;
+  (void)theOutIter;
   return OcctL::Core::Guard([&]() -> occtl_status_t {
-    if (theGraph == nullptr || theOutIter == nullptr)
-    {
-      OcctL::Core::ErrorState::Current().Set(OCCTL_INVALID_ARGUMENT,
-                                             theGraph ? "out_iter is NULL" : "graph is NULL");
-      return OCCTL_INVALID_ARGUMENT;
-    }
-    BRepGraph_WireId aWireId;
-    if (const occtl_status_t aErr =
-          OcctL::Topo::ToTypedId(theGraph, theWire, BRepGraph_NodeId::Kind::Wire, aWireId))
-    {
-      return aErr;
-    }
-    occtl_node_iter* anIter = new occtl_node_iter;
-    anIter->impl.template emplace<BRepGraph_WireExplorer>(theGraph->graph, aWireId);
-    *theOutIter = anIter;
-    return OCCTL_OK;
+    OcctL::Core::ErrorState::Current().Set(OCCTL_UNSUPPORTED,
+                                           "BRepGraph_WireExplorer not available in OCCT 8.0.0-p1");
+    return OCCTL_UNSUPPORTED;
   });
 }
 
@@ -677,49 +663,15 @@ OCCTL_API occtl_status_t OCCTL_CALL
                               const size_t                 theCap,
                               size_t* const                theOutCount)
 {
+  (void)theGraph;
+  (void)theWire;
+  (void)theOutBuf;
+  (void)theCap;
+  (void)theOutCount;
   return OcctL::Core::Guard([&]() -> occtl_status_t {
-    if (theGraph == nullptr || theOutCount == nullptr)
-    {
-      OcctL::Core::ErrorState::Current().Set(OCCTL_INVALID_ARGUMENT, "graph or out_count is NULL");
-      return OCCTL_INVALID_ARGUMENT;
-    }
-
-    BRepGraph_WireId aWireId;
-    if (const occtl_status_t aErr =
-          OcctL::Topo::ToTypedId(theGraph, theWire, BRepGraph_NodeId::Kind::Wire, aWireId))
-    {
-      return aErr;
-    }
-
-    NCollection_LinearVector<occtl_oriented_node_t> anEdges;
-    BRepGraph_WireExplorer                          anExplorer(theGraph->graph, aWireId);
-    anEdges.Reserve(static_cast<size_t>(anExplorer.NbEdges()));
-    for (; anExplorer.More(); anExplorer.Next())
-    {
-      const BRepGraph_CoEdgeId aCoEdgeId = anExplorer.CurrentCoEdgeId();
-      const BRepGraph_EdgeId anEdgeId = BRepGraph_Tool::CoEdge::EdgeOf(theGraph->graph, aCoEdgeId);
-      const TopAbs_Orientation anOrientation =
-        BRepGraph_Tool::CoEdge::Orientation(theGraph->graph, aCoEdgeId);
-      anEdges.Append(
-        {OcctL::Topo::PackNodeId(anEdgeId), OcctL::Topo::FromOcctOrientation(anOrientation)});
-    }
-
-    *theOutCount = anEdges.Size();
-    if (theOutBuf != nullptr && theCap < anEdges.Size())
-    {
-      OcctL::Core::ErrorState::Current().Set(OCCTL_BUFFER_TOO_SMALL,
-                                             "out_buf capacity is too small");
-      return OCCTL_BUFFER_TOO_SMALL;
-    }
-
-    if (theOutBuf != nullptr)
-    {
-      for (size_t anI = 0; anI < anEdges.Size(); ++anI)
-      {
-        theOutBuf[anI] = anEdges.Value(anI);
-      }
-    }
-    return OCCTL_OK;
+    OcctL::Core::ErrorState::Current().Set(OCCTL_UNSUPPORTED,
+                                           "BRepGraph_WireExplorer not available in OCCT 8.0.0-p1");
+    return OCCTL_UNSUPPORTED;
   });
 }
 

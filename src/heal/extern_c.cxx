@@ -89,7 +89,7 @@ occtl_status_t AddShapeToGraph(occtl_graph_t* const theGraph,
   anBuildOpts.CreateAutoProduct = false;
 
   const BRepGraph::ShapesView::Result aBuildRes = theGraph->graph.Shapes().Add(aCopy, anBuildOpts);
-  if (!aBuildRes.Ok)
+  if (!aBuildRes.IsOk())
   {
     OcctL::Core::ErrorState::Current().Set(
       OCCTL_TOPOLOGY_INVALID,

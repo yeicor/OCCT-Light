@@ -30,6 +30,8 @@
 #include <BRepGraph_EditorView.hxx>
 #include <BRepGraph_Tool.hxx>
 #include <BRepGraph_TopoView.hxx>
+#include <BRepGraph_Data.hxx>
+#include <BRepGraphInc_Storage.hxx>
 
 #include <TopLoc_Location.hxx>
 
@@ -104,16 +106,17 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_graph_clone(const occtl_graph_t* const
     }
     *theOutGraph = nullptr;
 
-    BRepGraph aCopy = BRepGraph_Copy::Perform(theSource->graph, true);
-    if (!aCopy.IsDone())
+    occtl_graph_t* const aNewGraph = new occtl_graph();
+    BRepGraph aCopy;
+    if (!BRepGraph_Copy::Perform(theSource->graph, aCopy))
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_ERROR,
-                                             "BRepGraph_Copy::Perform returned !IsDone");
+                                             "BRepGraph_Copy::Perform failed");
+      delete aNewGraph;
       return OCCTL_ERROR;
     }
 
-    occtl_graph_t* const aNewGraph = new occtl_graph();
-    aNewGraph->graph               = std::move(aCopy);
+    aNewGraph->graph = std::move(aCopy);
     OcctL::Topo::CopyBuiltinLayers(theSource->graph, aNewGraph->graph);
     *theOutGraph = aNewGraph;
     return OCCTL_OK;
@@ -211,14 +214,11 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_topo_remove_rep(occtl_graph_t* const t
       return OCCTL_INVALID_ARGUMENT;
     }
 
-    const BRepGraph_RepId aRepId = OcctL::Topo::UnpackRepId(theRepId);
-    if (!aRepId.IsValid())
-    {
-      OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_FOUND, "theRepId is invalid or removed");
-      return OCCTL_NOT_FOUND;
-    }
-
-    theGraph->graph.Editor().Gen().RemoveRep(aRepId);
+    // 8.0.0-p1: Gen::RemoveRep not available; stub.
+    (void)theRepId;
+   OcctL::Core::ErrorState::Current().Set(OCCTL_UNSUPPORTED,
+                                             "occtl_topo_remove_rep not implemented");
+    return OCCTL_UNSUPPORTED;
     return OCCTL_OK;
   });
 }
@@ -275,7 +275,7 @@ OCCTL_API occtl_status_t OCCTL_CALL
       return OCCTL_NOT_FOUND;
     }
 
-    theGraph->graph.Editor().Vertices().SetRefVertexDefId(anOldRefId, aVertId);
+    theGraph->graph.Editor().Vertices().SetRefChildVertexId(anOldRefId, aVertId);
     return OCCTL_OK;
   });
 }
@@ -316,7 +316,7 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_topo_set_edge_end_vertex(occtl_graph_t
       return OCCTL_NOT_FOUND;
     }
 
-    theGraph->graph.Editor().Vertices().SetRefVertexDefId(anOldRefId, aVertId);
+    theGraph->graph.Editor().Vertices().SetRefChildVertexId(anOldRefId, aVertId);
     return OCCTL_OK;
   });
 }

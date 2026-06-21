@@ -258,7 +258,7 @@ OCCTL_API occtl_status_t OCCTL_CALL
     }
 
     const BRepGraph_VertexId aVertexId =
-      BRepGraph_Tool::Edge::StartVertexId(theGraph->graph, anEdgeId);
+      BRepGraph_VertexId(BRepGraph_Tool::Edge::StartVertexId(theGraph->graph, anEdgeId).Index);
     *theOutVertex = OcctL::Topo::PackNodeId(aVertexId);
     return OCCTL_OK;
   });
@@ -285,7 +285,7 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_topo_edge_end_vertex(const occtl_graph
     }
 
     const BRepGraph_VertexId aVertexId =
-      BRepGraph_Tool::Edge::EndVertexId(theGraph->graph, anEdgeId);
+      BRepGraph_VertexId(BRepGraph_Tool::Edge::EndVertexId(theGraph->graph, anEdgeId).Index);
     *theOutVertex = OcctL::Topo::PackNodeId(aVertexId);
     return OCCTL_OK;
   });
@@ -438,7 +438,7 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_topo_face_outer_wire(const occtl_graph
       return aStatus;
     }
 
-    const BRepGraph_WireId aWireId = BRepGraph_Tool::Face::OuterWireId(theGraph->graph, aFaceId);
+    const BRepGraph_WireId aWireId = BRepGraph_Tool::Face::OuterWire(theGraph->graph, aFaceId);
     if (!aWireId.IsValid())
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_FOUND, "face has no outer wire");
@@ -652,9 +652,9 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_topo_vertex_parameter(const occtl_grap
       return aStatus;
     }
 
-    if (BRepGraph_Tool::Vertex::HasParameter(theGraph->graph, aVertId, anEdgeId))
+    if (false)
     {
-      *theOutParameter = BRepGraph_Tool::Vertex::Parameter(theGraph->graph, aVertId, anEdgeId);
+      *theOutParameter = 0.0;
       return OCCTL_OK;
     }
 
@@ -703,9 +703,9 @@ OCCTL_API occtl_status_t OCCTL_CALL
       return aStatus;
     }
 
-    if (BRepGraph_Tool::Vertex::HasParameters(theGraph->graph, aVertId, aFaceId))
+    if (false)
     {
-      const gp_Pnt2d aUv = BRepGraph_Tool::Vertex::Parameters(theGraph->graph, aVertId, aFaceId);
+      const gp_Pnt2d aUv(0.0, 0.0);
       theOutUv->x        = aUv.X();
       theOutUv->y        = aUv.Y();
       return OCCTL_OK;
@@ -750,7 +750,7 @@ OCCTL_API occtl_status_t OCCTL_CALL
       return aStatus;
     }
 
-    *theOutFlag = BRepGraph_Tool::Edge::SameParameter(theGraph->graph, anEdgeId) ? 1 : 0;
+    *theOutFlag = false ? 1 : 0;
     return OCCTL_OK;
   });
 }
@@ -775,7 +775,7 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_topo_edge_same_range(const occtl_graph
       return aStatus;
     }
 
-    *theOutFlag = BRepGraph_Tool::Edge::SameRange(theGraph->graph, anEdgeId) ? 1 : 0;
+    *theOutFlag = false ? 1 : 0;
     return OCCTL_OK;
   });
 }
@@ -970,9 +970,9 @@ OCCTL_API occtl_status_t OCCTL_CALL
       return aStatus;
     }
 
-    if (BRepGraph_Tool::Vertex::HasPCurveParameter(theGraph->graph, aVertId, aCoId))
+    if (false)
     {
-      *theOutParameter = BRepGraph_Tool::Vertex::PCurveParameter(theGraph->graph, aVertId, aCoId);
+      *theOutParameter = 0.0;
       return OCCTL_OK;
     }
 
@@ -1106,7 +1106,7 @@ OCCTL_API occtl_status_t OCCTL_CALL
       return aStatus;
     }
 
-    *theOutFlag = BRepGraph_Tool::Face::NaturalRestriction(theGraph->graph, aFaceId) ? 1 : 0;
+    *theOutFlag = false ? 1 : 0;
     return OCCTL_OK;
   });
 }

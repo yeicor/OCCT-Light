@@ -33,7 +33,8 @@
 
 #include <occtl/occtl_mesh.h>
 
-#include <BRepGraphMesh_IncrementalMesh.hxx>
+/* BRepGraphMesh_IncrementalMesh removed in OCCT 8.0.0-p1;
+ * reimplement with BRepMesh_IncrementalMesh + BRepGraph::ShapesView::Shape(). */
 #include <BRepGraph_NodeId.hxx>
 #include <NCollection_DynamicArray.hxx>
 #include <Precision.hxx>
@@ -163,6 +164,10 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_mesh_generate(occtl_graph_t* const    
                                                         const size_t                      n_nodes,
                                                         const occtl_mesh_options_t* const options)
 {
+// TODO: Reimplement with BRepMesh_IncrementalMesh + BRepGraph::ShapesView::Shape()
+// in OCCT 8.0.0-p1. The classic BRepMesh_IncrementalMesh operates on TopoDS_Shape,
+// so the graph nodes must be converted via ShapesView before meshing.
+#if 0
   return OcctL::Core::Guard([&]() -> occtl_status_t {
     if (graph == nullptr || options == nullptr)
     {
@@ -231,35 +236,41 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_mesh_generate(occtl_graph_t* const    
     if (n_nodes == 0)
     {
       aOk = aUseBbox ? BRepGraphMesh_IncrementalMesh::Perform(graph->graph,
-                                                              aBox,
-                                                              aDevCoef,
-                                                              aDevAngle,
-                                                              aInParallel)
+                                                               aBox,
+                                                               aDevCoef,
+                                                               aDevAngle,
+                                                               aInParallel)
                      : BRepGraphMesh_IncrementalMesh::Perform(graph->graph, aParams);
     }
     else if (n_nodes == 1)
     {
       aOk = aUseBbox ? BRepGraphMesh_IncrementalMesh::Perform(graph->graph,
-                                                              aSingleRoot,
-                                                              aBox,
-                                                              aDevCoef,
-                                                              aDevAngle,
-                                                              aInParallel)
+                                                               aSingleRoot,
+                                                               aBox,
+                                                               aDevCoef,
+                                                               aDevAngle,
+                                                               aInParallel)
                      : BRepGraphMesh_IncrementalMesh::Perform(graph->graph, aSingleRoot, aParams);
     }
     else
     {
       aOk = aUseBbox ? BRepGraphMesh_IncrementalMesh::Perform(graph->graph,
-                                                              aNodeIds,
-                                                              aBox,
-                                                              aDevCoef,
-                                                              aDevAngle,
-                                                              aInParallel)
+                                                               aNodeIds,
+                                                               aBox,
+                                                               aDevCoef,
+                                                               aDevAngle,
+                                                               aInParallel)
                      : BRepGraphMesh_IncrementalMesh::Perform(graph->graph, aNodeIds, aParams);
     }
 
     return aOk ? OCCTL_OK : OCCTL_NOT_DONE;
   });
+#else
+  OcctL::Core::ErrorState::Current().Set(
+    OCCTL_UNSUPPORTED,
+    "mesh_generate is not yet reimplemented for OCCT 8.0.0-p1");
+  return OCCTL_UNSUPPORTED;
+#endif
 }
 
 } // extern "C"

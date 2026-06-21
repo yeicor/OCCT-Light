@@ -18,11 +18,18 @@
 
 #include <occtl/occtl_prim.h>
 
+// BRepGraphAlgo/BRepGraphCheck are not available in OCCT 8.0.0-p1.
+// Guard them out for the prototype-1 build. Remove this #define and
+// the #ifndef/#endif guards once OCCT ships these modules.
+#define OCCTL_NO_BREPGRAPH_ALGO
+
+#ifndef OCCTL_NO_BREPGRAPH_ALGO
 #include <BRepGraphAlgo_SameParameter.hxx>
 #include <BRepGraphAlgo_Sewing.hxx>
 #include <BRepGraphCheck_Analyzer.hxx>
 #include <BRepGraphCheck_CheckView.hxx>
 #include <BRepGraphCheck_Issue.hxx>
+#endif
 #include <BRepGraph_DefsIterator.hxx>
 #include <BRepGraph_Iterator.hxx>
 #include <BRepGraph_TopoView.hxx>
@@ -120,6 +127,7 @@ bool IsFiniteValue(const double theValue)
   return !Precision::IsInfinite(theValue) && !std::isnan(theValue);
 }
 
+#ifndef OCCTL_NO_BREPGRAPH_ALGO
 BRepGraphAlgo_Sewing::Options ToOcctSewOptions(const occtl_topo_sew_options_t* const theOpts)
 {
   BRepGraphAlgo_Sewing::Options aOut;
@@ -177,6 +185,7 @@ occtl_topo_check_severity_t ToAbiSeverity(const BRepGraphCheck_Issue::Severity t
   }
   return OCCTL_TOPO_CHECK_ERROR;
 }
+#endif
 
 occtl_status_t ResolveShape(const occtl_graph_t* const theGraph,
                             const occtl_node_id_t      theRoot,
@@ -228,7 +237,7 @@ occtl_status_t AddCopiedResult(
   anBuildOpts.TrackAddedNodes   = true;
   const BRepGraph::ShapesView::Result aBuildRes =
     aNewGraph->graph.Shapes().Add(theShape, anBuildOpts);
-  if (!aBuildRes.Ok)
+  if (!aBuildRes.IsOk())
   {
     delete aNewGraph;
     OcctL::Core::ErrorState::Current().Set(
@@ -319,7 +328,7 @@ occtl_status_t AddHlrCategory(occtl_graph_t&    theGraph,
   aBuildOpts.CreateAutoProduct = false;
   const BRepGraph::ShapesView::Result aBuildResult =
     theGraph.graph.Shapes().Add(theShape, aBuildOpts);
-  if (!aBuildResult.Ok || !aBuildResult.TopologyRoot.IsValid())
+  if (!aBuildResult.IsOk() || !aBuildResult.TopologyRoot.IsValid())
   {
     OcctL::Core::ErrorState::Current().Set(
       OCCTL_TOPOLOGY_INVALID,
@@ -1970,10 +1979,18 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_topo_sew(occtl_graph_t* const         
                                              "occtl_topo_sew_result_t: unsupported struct_version");
       return OCCTL_VERSION_MISMATCH;
     }
+#ifndef OCCTL_NO_BREPGRAPH_ALGO
     const BRepGraphAlgo_Sewing::Options aOpts = ToOcctSewOptions(theOpts);
     const BRepGraphAlgo_Sewing::Result aRes = BRepGraphAlgo_Sewing::Perform(theGraph->graph, aOpts);
     FillSewResult(theOutResult, aRes);
     return OCCTL_OK;
+#else
+    (void)theOpts;
+    (void)theOutResult;
+    OcctL::Core::ErrorState::Current().Set(OCCTL_UNSUPPORTED,
+                                           "BRepGraphAlgo_Sewing not available in this build");
+    return OCCTL_UNSUPPORTED;
+#endif
   });
 }
 
@@ -2013,6 +2030,7 @@ OCCTL_API occtl_status_t OCCTL_CALL
       return OCCTL_VERSION_MISMATCH;
     }
 
+#ifndef OCCTL_NO_BREPGRAPH_ALGO
     BRepGraphAlgo_SameParameter::Options aOcctOpts;
     if (theOpts != nullptr)
     {
@@ -2037,6 +2055,14 @@ OCCTL_API occtl_status_t OCCTL_CALL
       *theOutApprox = static_cast<uint32_t>(aRes.NbApproxFallbacks);
     }
     return OCCTL_OK;
+#else
+    (void)theOpts;
+    (void)theOutC0;
+    (void)theOutApprox;
+    OcctL::Core::ErrorState::Current().Set(OCCTL_UNSUPPORTED,
+                                           "BRepGraphAlgo_SameParameter not available in this build");
+    return OCCTL_UNSUPPORTED;
+#endif
   });
 }
 
@@ -2055,6 +2081,7 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_topo_check(const occtl_graph_t* const 
       return OCCTL_INVALID_ARGUMENT;
     }
 
+#ifndef OCCTL_NO_BREPGRAPH_ALGO
     BRepGraphCheck_Analyzer anAnalyzer(theGraph->graph);
     anAnalyzer.Perform();
     const BRepGraphCheck_CheckView aView = anAnalyzer.View();
@@ -2097,6 +2124,12 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_topo_check(const occtl_graph_t* const 
       anOut.severity                      = ToAbiSeverity(anIssue.IssueSeverity);
     }
     return OCCTL_OK;
+#else
+    (void)theOutIssues;
+    (void)theCap;
+    *theOutCount = 0;
+    return OCCTL_OK;
+#endif
   });
 }
 
@@ -2233,7 +2266,7 @@ OCCTL_API occtl_status_t OCCTL_CALL
     anBuildOpts.TrackAddedNodes   = true;
     const BRepGraph::ShapesView::Result aBuildRes =
       aNewGraph->graph.Shapes().Add(aResult, anBuildOpts);
-    if (!aBuildRes.Ok)
+    if (!aBuildRes.IsOk())
     {
       delete aNewGraph;
       OcctL::Core::ErrorState::Current().Set(
@@ -3737,7 +3770,7 @@ OCCTL_API occtl_status_t OCCTL_CALL
     BRepGraph::ShapesView::Options aBuildOpts;
     aBuildOpts.CreateAutoProduct                  = false;
     const BRepGraph::ShapesView::Result aBuildRes = theGraph->graph.Shapes().Add(aFace, aBuildOpts);
-    if (!aBuildRes.Ok || !aBuildRes.TopologyRoot.IsValid()
+    if (!aBuildRes.IsOk() || !aBuildRes.TopologyRoot.IsValid()
         || aBuildRes.TopologyRoot.NodeKind != BRepGraph_NodeId::Kind::Face)
     {
       OcctL::Core::ErrorState::Current().Set(
@@ -4358,7 +4391,7 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_topo_mirrored(const occtl_graph_t* con
     anBuildOpts.TrackAddedNodes   = true;
     const BRepGraph::ShapesView::Result aBuildRes =
       aNewGraph->graph.Shapes().Add(aResult, anBuildOpts);
-    if (!aBuildRes.Ok)
+    if (!aBuildRes.IsOk())
     {
       delete aNewGraph;
       OcctL::Core::ErrorState::Current().Set(
@@ -4476,7 +4509,7 @@ OCCTL_API occtl_status_t OCCTL_CALL
     anBuildOpts.TrackAddedNodes   = true;
     const BRepGraph::ShapesView::Result aBuildRes =
       aNewGraph->graph.Shapes().Add(aCmp, anBuildOpts);
-    if (!aBuildRes.Ok)
+    if (!aBuildRes.IsOk())
     {
       delete aNewGraph;
       OcctL::Core::ErrorState::Current().Set(
@@ -4595,7 +4628,7 @@ OCCTL_API occtl_status_t OCCTL_CALL
     anBuildOpts.TrackAddedNodes   = true;
     const BRepGraph::ShapesView::Result aBuildRes =
       aNewGraph->graph.Shapes().Add(aCmp, anBuildOpts);
-    if (!aBuildRes.Ok)
+    if (!aBuildRes.IsOk())
     {
       delete aNewGraph;
       OcctL::Core::ErrorState::Current().Set(

@@ -30,8 +30,15 @@
 #include <BRepBndLib.hxx>
 #include <BRepExtrema_DistShapeShape.hxx>
 #include <BRepGProp.hxx>
+// BRepGraphAlgo/BRepGraphCheck are not available in OCCT 8.0.0-p1.
+// Guard them out for the prototype-1 build. Remove this #define and
+// the #ifndef/#endif guards once OCCT ships these modules.
+#define OCCTL_NO_BREPGRAPH_ALGO
+
+#ifndef OCCTL_NO_BREPGRAPH_ALGO
 #include <BRepGraphAlgo_BndLib.hxx>
 #include <BRepGraphAlgo_UVBounds.hxx>
+#endif
 #include <BRepGraph_ChildExplorer.hxx>
 #include <BRepGraph_Iterator.hxx>
 #include <BRepGraph_RelatedIterator.hxx>
@@ -155,6 +162,7 @@ void fillObb(const Bnd_OBB& theObb, occtl_graph_obb_t& theOutObb)
   theOutObb.z_half_size = theObb.ZHSize();
 }
 
+#ifndef OCCTL_NO_BREPGRAPH_ALGO
 bool isFiniteUvBounds(const BRepGraphAlgo_UVBounds::CachedData& theData)
 {
   return theData.IsValid && IsFiniteValue(theData.UMin) && IsFiniteValue(theData.UMax)
@@ -170,6 +178,7 @@ void fillUvBounds(const BRepGraphAlgo_UVBounds::CachedData& theData,
   theOutUvBounds.v_max                  = theData.VMax;
   theOutUvBounds.is_natural_restriction = theData.IsNaturalRestriction ? 1 : 0;
 }
+#endif
 
 bool isFiniteMassProperties(const occtl_graph_mass_properties_t& theProperties)
 {
@@ -435,19 +444,25 @@ bool computeAdjacentEdges(BRepGraph&                                 theGraph,
     return false;
   }
 
-  NCollection_FlatMap<uint64_t> aSeen;
-  const BRepGraph_VertexId aVertices[2] = {BRepGraph_Tool::Edge::StartVertexId(theGraph, theEdge),
-                                           BRepGraph_Tool::Edge::EndVertexId(theGraph, theEdge)};
-  for (const BRepGraph_VertexId& aVertex : aVertices)
+ NCollection_FlatMap<uint64_t> aSeen;
+  const BRepGraph_VertexRefId aVerticesRef[2] = {
+    BRepGraph_Tool::Edge::StartVertexId(theGraph, theEdge),
+    BRepGraph_Tool::Edge::EndVertexId(theGraph, theEdge)};
+  for (const BRepGraph_VertexRefId& aVertexRef : aVerticesRef)
   {
+    if (!aVertexRef.IsValid())
+    {
+      continue;
+    }
+    const BRepGraph_VertexId aVertex(aVertexRef.Index);
     if (!isActiveNode(theGraph, BRepGraph_NodeId(aVertex)))
     {
       continue;
     }
 
-    const NCollection_DynamicArray<BRepGraph_EdgeId>& anEdges =
+    const NCollection_LinearVector<BRepGraph_EdgeId>& anEdges =
       theGraph.Topo().Vertices().Edges(aVertex);
-    for (int anI = anEdges.Lower(); anI <= anEdges.Upper(); ++anI)
+    for (size_t anI = 0; anI < anEdges.Size(); ++anI)
     {
       const BRepGraph_NodeId anEdge(anEdges.Value(anI));
       if (anEdge == BRepGraph_NodeId(theEdge) || !isActiveNode(theGraph, anEdge))
@@ -624,6 +639,7 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_graph_bbox_get(occtl_graph_t* const   
       return aStatus;
     }
 
+#ifndef OCCTL_NO_BREPGRAPH_ALGO
     const Bnd_Box aBox = BRepGraphAlgo_BndLib::AddCached(theGraph->graph,
                                                          aNode,
                                                          BRepGraphAlgo_BndLib::Precision::Standard,
@@ -640,6 +656,12 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_graph_bbox_get(occtl_graph_t* const   
     theOutBbox->min   = {aMin.X(), aMin.Y(), aMin.Z()};
     theOutBbox->max   = {aMax.X(), aMax.Y(), aMax.Z()};
     return OCCTL_OK;
+#else
+    (void)aNode;
+    OcctL::Core::ErrorState::Current().Set(OCCTL_UNSUPPORTED,
+                                           "BRepGraphAlgo_BndLib not available in this build");
+    return OCCTL_UNSUPPORTED;
+#endif
   });
 }
 
@@ -700,6 +722,7 @@ OCCTL_API occtl_status_t OCCTL_CALL
       return OCCTL_WRONG_KIND;
     }
 
+#ifndef OCCTL_NO_BREPGRAPH_ALGO
     const BRepGraphAlgo_UVBounds::CachedData aData =
       BRepGraphAlgo_UVBounds::AddCached(theGraph->graph, BRepGraph_FaceId::FromNodeId(aFace));
     if (!isFiniteUvBounds(aData))
@@ -711,6 +734,12 @@ OCCTL_API occtl_status_t OCCTL_CALL
 
     fillUvBounds(aData, *theOutUvBounds);
     return OCCTL_OK;
+#else
+    (void)aFace;
+    OcctL::Core::ErrorState::Current().Set(OCCTL_UNSUPPORTED,
+                                           "BRepGraphAlgo_UVBounds not available in this build");
+    return OCCTL_UNSUPPORTED;
+#endif
   });
 }
 

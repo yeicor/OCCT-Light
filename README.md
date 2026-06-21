@@ -1,5 +1,17 @@
 # OCCT-Light
 
+> **⚠️ WARNING: This is a community fork ported to OCCT 8.0.0-p1.**  
+> The upstream [OCCT-Light](https://github.com/Open-Cascade-SAS/OCCT-Light) targets a **post-refactor** OCCT with a significantly different `BRepGraph` and `BRepGraph_Tool` API. This fork backports those calls to the shipped **OCCT 8.0.0-p1** release:
+> - `BRepGraph_Tool::Edge::Xxx`, `Face::Xxx`, `Vertex::Xxx` etc. (nested classes, not flat methods)
+> - `BRepGraph::EditorView` API differences (`SetCurve`/`SetPCurve` take handles, not RepIds)
+> - `ShapesView::Result::Ok` → `ShapesView::Result::IsOk()`
+> - `BRepGraph_UID::Kind()` → `BRepGraph_UID::Kind` (field, not method)
+> - Missing EditorView setters, `BRepGraph_CoEdgeRefIterator`, `BRepGraphMesh_IncrementalMesh`, `GeomAPI_PlanarConvexHull` stubbed
+> - `OnCompact(const NCollection_DataMap<...>&)` → `CopyTo(const BRepGraph_CopyRemap&)` for layer classes
+> - Compat headers under `src/compat/occt81/` (`RepsCompat.hxx`, `RepLookup.hxx`, `BRepGraph_RepUID.hxx`)
+>
+> For full details see the [AGENTS.md](./AGENTS.md) session log. **Upstream PRs should target the original repo, not this fork.**
+
 > A modular C-ABI wrapper around [Open CASCADE Technology](https://dev.opencascade.org/), designed as the canonical bridge for Python, C#, JS/TS, WASM, Rust, Go, Java, and any language with a C foreign-function interface.
 
 OCCT-Light exposes a **pure C ABI** — opaque handles, POD structs, error codes, no STL or OCCT types in public headers — with an optional **header-only C++ veneer** for ergonomic C++ consumption (RAII handles, exceptions translated from status codes). It uses **BRepGraph** (OCCT's modern incidence-table topology) as the canonical shape representation, not `TopoDS`. Modules are toggled at CMake configure time. The project is still pre-release, so public API breaks are allowed when they make the final headless CAD interface cleaner.

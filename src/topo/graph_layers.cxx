@@ -22,6 +22,7 @@
 #include "../core/ErrorState.hxx"
 #include "../core/Guard.hxx"
 
+#include <BRepGraph_CopyRemap.hxx>
 #include <BRepGraph_Layer.hxx>
 #include <BRepGraph_LayerRegistry.hxx>
 #include <BRepGraph_TopoView.hxx>
@@ -147,7 +148,7 @@ public:
   }
 
   void OnNodeReplaced(const BRepGraph_NodeId theNode,
-                      const BRepGraph_NodeId theReplacement) noexcept override
+                       const BRepGraph_NodeId theReplacement) noexcept override
   {
     const Quantity_ColorRGBA* anOldColor = myColors.Seek(theNode);
     if (anOldColor == nullptr)
@@ -162,34 +163,28 @@ public:
     touch();
   }
 
-  void OnCompact(
-    const NCollection_DataMap<BRepGraph_NodeId, BRepGraph_NodeId>& theRemapMap) noexcept override
+  void CopyTo(const BRepGraph_CopyRemap& theCopy) const override
   {
-    bool                                                      hasTopologyColors = false;
-    NCollection_DataMap<BRepGraph_NodeId, Quantity_ColorRGBA> aRemapped;
+    if (myColors.IsEmpty())
+    {
+      return;
+    }
+    occ::handle<OcctL_Topo_ColorLayer> aTarget =
+      theCopy.TargetGraph().LayerRegistry().FindLayer<OcctL_Topo_ColorLayer>();
+    if (aTarget.IsNull())
+    {
+      return;
+    }
     for (NCollection_DataMap<BRepGraph_NodeId, Quantity_ColorRGBA>::Iterator anIter(myColors);
          anIter.More();
          anIter.Next())
     {
-      const BRepGraph_NodeId& anOldId = anIter.Key();
-      if (BRepGraph_NodeId::IsTopologyKind(anOldId.NodeKind))
+      const BRepGraph_ItemId aTargetItem = theCopy.TargetItem(BRepGraph_ItemId(anIter.Key()));
+      if (!aTargetItem.IsValid())
       {
-        hasTopologyColors              = true;
-        const BRepGraph_NodeId* aNewId = theRemapMap.Seek(anOldId);
-        if (aNewId != nullptr)
-        {
-          aRemapped.Bind(*aNewId, anIter.Value());
-        }
+        continue;
       }
-      else
-      {
-        aRemapped.Bind(anOldId, anIter.Value());
-      }
-    }
-    myColors = std::move(aRemapped);
-    if (hasTopologyColors)
-    {
-      touch();
+      aTarget->SetColor(aTargetItem.NodeId(), anIter.Value());
     }
   }
 
@@ -289,7 +284,7 @@ public:
   }
 
   void OnNodeReplaced(const BRepGraph_NodeId theNode,
-                      const BRepGraph_NodeId theReplacement) noexcept override
+                       const BRepGraph_NodeId theReplacement) noexcept override
   {
     const TCollection_AsciiString* anOldName = myNames.Seek(theNode);
     if (anOldName == nullptr)
@@ -304,34 +299,28 @@ public:
     touch();
   }
 
-  void OnCompact(
-    const NCollection_DataMap<BRepGraph_NodeId, BRepGraph_NodeId>& theRemapMap) noexcept override
+  void CopyTo(const BRepGraph_CopyRemap& theCopy) const override
   {
-    bool                                                           hasTopologyNames = false;
-    NCollection_DataMap<BRepGraph_NodeId, TCollection_AsciiString> aRemapped;
+    if (myNames.IsEmpty())
+    {
+      return;
+    }
+    occ::handle<OcctL_Topo_NameLayer> aTarget =
+      theCopy.TargetGraph().LayerRegistry().FindLayer<OcctL_Topo_NameLayer>();
+    if (aTarget.IsNull())
+    {
+      return;
+    }
     for (NCollection_DataMap<BRepGraph_NodeId, TCollection_AsciiString>::Iterator anIter(myNames);
          anIter.More();
          anIter.Next())
     {
-      const BRepGraph_NodeId& anOldId = anIter.Key();
-      if (BRepGraph_NodeId::IsTopologyKind(anOldId.NodeKind))
+      const BRepGraph_ItemId aTargetItem = theCopy.TargetItem(BRepGraph_ItemId(anIter.Key()));
+      if (!aTargetItem.IsValid())
       {
-        hasTopologyNames               = true;
-        const BRepGraph_NodeId* aNewId = theRemapMap.Seek(anOldId);
-        if (aNewId != nullptr)
-        {
-          aRemapped.Bind(*aNewId, anIter.Value());
-        }
+        continue;
       }
-      else
-      {
-        aRemapped.Bind(anOldId, anIter.Value());
-      }
-    }
-    myNames = std::move(aRemapped);
-    if (hasTopologyNames)
-    {
-      touch();
+      aTarget->SetName(aTargetItem.NodeId(), anIter.Value());
     }
   }
 
@@ -445,7 +434,7 @@ public:
   }
 
   void OnNodeReplaced(const BRepGraph_NodeId theNode,
-                      const BRepGraph_NodeId theReplacement) noexcept override
+                       const BRepGraph_NodeId theReplacement) noexcept override
   {
     const MaterialRecord* anOldMaterial = myMaterials.Seek(theNode);
     if (anOldMaterial == nullptr)
@@ -460,34 +449,28 @@ public:
     touch();
   }
 
-  void OnCompact(
-    const NCollection_DataMap<BRepGraph_NodeId, BRepGraph_NodeId>& theRemapMap) noexcept override
+  void CopyTo(const BRepGraph_CopyRemap& theCopy) const override
   {
-    bool                                                  hasTopologyMaterials = false;
-    NCollection_DataMap<BRepGraph_NodeId, MaterialRecord> aRemapped;
+    if (myMaterials.IsEmpty())
+    {
+      return;
+    }
+    occ::handle<OcctL_Topo_MaterialLayer> aTarget =
+      theCopy.TargetGraph().LayerRegistry().FindLayer<OcctL_Topo_MaterialLayer>();
+    if (aTarget.IsNull())
+    {
+      return;
+    }
     for (NCollection_DataMap<BRepGraph_NodeId, MaterialRecord>::Iterator anIter(myMaterials);
          anIter.More();
          anIter.Next())
     {
-      const BRepGraph_NodeId& anOldId = anIter.Key();
-      if (BRepGraph_NodeId::IsTopologyKind(anOldId.NodeKind))
+      const BRepGraph_ItemId aTargetItem = theCopy.TargetItem(BRepGraph_ItemId(anIter.Key()));
+      if (!aTargetItem.IsValid())
       {
-        hasTopologyMaterials           = true;
-        const BRepGraph_NodeId* aNewId = theRemapMap.Seek(anOldId);
-        if (aNewId != nullptr)
-        {
-          aRemapped.Bind(*aNewId, anIter.Value());
-        }
+        continue;
       }
-      else
-      {
-        aRemapped.Bind(anOldId, anIter.Value());
-      }
-    }
-    myMaterials = std::move(aRemapped);
-    if (hasTopologyMaterials)
-    {
-      touch();
+      aTarget->SetMaterial(aTargetItem.NodeId(), anIter.Value());
     }
   }
 
@@ -561,8 +544,19 @@ public:
 
   void OnNodeReplaced(const BRepGraph_NodeId, const BRepGraph_NodeId) noexcept override {}
 
-  void OnCompact(const NCollection_DataMap<BRepGraph_NodeId, BRepGraph_NodeId>&) noexcept override
+  void CopyTo(const BRepGraph_CopyRemap& theCopy) const override
   {
+    if (!myHasUnits)
+    {
+      return;
+    }
+    occ::handle<OcctL_Topo_UnitsLayer> aTarget =
+      theCopy.TargetGraph().LayerRegistry().FindLayer<OcctL_Topo_UnitsLayer>();
+    if (aTarget.IsNull())
+    {
+      return;
+    }
+    aTarget->SetUnits(myLengthUnitToMeter, myName);
   }
 
   void InvalidateAll() noexcept override {}
@@ -791,7 +785,7 @@ public:
   }
 
   void OnNodeReplaced(const BRepGraph_NodeId theNode,
-                      const BRepGraph_NodeId theReplacement) noexcept override
+                       const BRepGraph_NodeId theReplacement) noexcept override
   {
     const NCollection_DataMap<TCollection_AsciiString, TCollection_AsciiString>* anOldValues =
       myValues.Seek(theNode);
@@ -826,13 +820,14 @@ public:
     touch();
   }
 
-  void OnCompact(
-    const NCollection_DataMap<BRepGraph_NodeId, BRepGraph_NodeId>& theRemapMap) noexcept override
+  void CopyTo(const BRepGraph_CopyRemap& theCopy) const override
   {
-    bool hasTopologyMetadata = false;
-    NCollection_DataMap<BRepGraph_NodeId,
-                        NCollection_DataMap<TCollection_AsciiString, TCollection_AsciiString>>
-      aRemapped;
+    occ::handle<OcctL_Topo_MetadataLayer> aTarget =
+      theCopy.TargetGraph().LayerRegistry().FindLayer<OcctL_Topo_MetadataLayer>();
+    if (aTarget.IsNull())
+    {
+      return;
+    }
     for (NCollection_DataMap<
            BRepGraph_NodeId,
            NCollection_DataMap<TCollection_AsciiString, TCollection_AsciiString>>::Iterator
@@ -840,25 +835,25 @@ public:
          anIter.More();
          anIter.Next())
     {
-      const BRepGraph_NodeId& anOldId = anIter.Key();
-      if (BRepGraph_NodeId::IsTopologyKind(anOldId.NodeKind))
+      const BRepGraph_ItemId aTargetItem = theCopy.TargetItem(BRepGraph_ItemId(anIter.Key()));
+      if (!aTargetItem.IsValid())
       {
-        hasTopologyMetadata            = true;
-        const BRepGraph_NodeId* aNewId = theRemapMap.Seek(anOldId);
-        if (aNewId != nullptr)
-        {
-          aRemapped.Bind(*aNewId, anIter.Value());
-        }
+        continue;
       }
-      else
+      for (NCollection_DataMap<TCollection_AsciiString, TCollection_AsciiString>::Iterator
+             aValueIter(anIter.Value());
+           aValueIter.More();
+           aValueIter.Next())
       {
-        aRemapped.Bind(anOldId, anIter.Value());
+        aTarget->SetValue(aTargetItem.NodeId(), aValueIter.Key(), aValueIter.Value());
       }
     }
-    myValues = std::move(aRemapped);
-    if (hasTopologyMetadata)
+    for (NCollection_DataMap<TCollection_AsciiString, TCollection_AsciiString>::Iterator anIter(
+           myGraphValues);
+         anIter.More();
+         anIter.Next())
     {
-      touch();
+      aTarget->SetGraphValue(anIter.Key(), anIter.Value());
     }
   }
 
@@ -1008,7 +1003,7 @@ public:
   }
 
   void OnNodeReplaced(const BRepGraph_NodeId theNode,
-                      const BRepGraph_NodeId theReplacement) noexcept override
+                       const BRepGraph_NodeId theReplacement) noexcept override
   {
     const NCollection_FlatMap<TCollection_AsciiString>* anOldTags = myTags.Seek(theNode);
     if (anOldTags == nullptr)
@@ -1034,35 +1029,34 @@ public:
     touch();
   }
 
-  void OnCompact(
-    const NCollection_DataMap<BRepGraph_NodeId, BRepGraph_NodeId>& theRemapMap) noexcept override
+  void CopyTo(const BRepGraph_CopyRemap& theCopy) const override
   {
-    bool hasTopologyTags = false;
-    NCollection_DataMap<BRepGraph_NodeId, NCollection_FlatMap<TCollection_AsciiString>> aRemapped;
+    if (myTags.IsEmpty())
+    {
+      return;
+    }
+    occ::handle<OcctL_Topo_TagLayer> aTarget =
+      theCopy.TargetGraph().LayerRegistry().FindLayer<OcctL_Topo_TagLayer>();
+    if (aTarget.IsNull())
+    {
+      return;
+    }
     for (NCollection_DataMap<BRepGraph_NodeId,
                              NCollection_FlatMap<TCollection_AsciiString>>::Iterator anIter(myTags);
          anIter.More();
          anIter.Next())
     {
-      const BRepGraph_NodeId& anOldId = anIter.Key();
-      if (BRepGraph_NodeId::IsTopologyKind(anOldId.NodeKind))
+      const BRepGraph_ItemId aTargetItem = theCopy.TargetItem(BRepGraph_ItemId(anIter.Key()));
+      if (!aTargetItem.IsValid())
       {
-        hasTopologyTags                = true;
-        const BRepGraph_NodeId* aNewId = theRemapMap.Seek(anOldId);
-        if (aNewId != nullptr)
-        {
-          aRemapped.Bind(*aNewId, anIter.Value());
-        }
+        continue;
       }
-      else
+      for (NCollection_FlatMap<TCollection_AsciiString>::Iterator aTagIter(anIter.Value());
+           aTagIter.More();
+           aTagIter.Next())
       {
-        aRemapped.Bind(anOldId, anIter.Value());
+        aTarget->AddTag(aTargetItem.NodeId(), aTagIter.Key());
       }
-    }
-    myTags = std::move(aRemapped);
-    if (hasTopologyTags)
-    {
-      touch();
     }
   }
 
@@ -1181,7 +1175,7 @@ public:
   }
 
   void OnNodeReplaced(const BRepGraph_NodeId theNode,
-                      const BRepGraph_NodeId theReplacement) noexcept override
+                       const BRepGraph_NodeId theReplacement) noexcept override
   {
     bool                               didChange = false;
     NCollection_LinearVector<uint64_t> aRemoveIds;
@@ -1223,58 +1217,32 @@ public:
     }
   }
 
-  void OnCompact(
-    const NCollection_DataMap<BRepGraph_NodeId, BRepGraph_NodeId>& theRemapMap) noexcept override
+  void CopyTo(const BRepGraph_CopyRemap& theCopy) const override
   {
-    bool                               didChange = false;
-    NCollection_LinearVector<uint64_t> aRemoveIds;
-    for (NCollection_FlatDataMap<uint64_t, JointRecord>::Iterator anIter(myJoints); anIter.More();
+    if (myJoints.IsEmpty())
+    {
+      return;
+    }
+    occ::handle<OcctL_Topo_JointLayer> aTarget =
+      theCopy.TargetGraph().LayerRegistry().FindLayer<OcctL_Topo_JointLayer>();
+    if (aTarget.IsNull())
+    {
+      return;
+    }
+    for (NCollection_FlatDataMap<uint64_t, JointRecord>::Iterator anIter(myJoints);
+         anIter.More();
          anIter.Next())
     {
-      JointRecord&     aRecord = anIter.ChangeValue();
-      BRepGraph_NodeId aNodeA  = aRecord.NodeA;
-      BRepGraph_NodeId aNodeB  = aRecord.NodeB;
-
-      if (BRepGraph_NodeId::IsTopologyKind(aNodeA.NodeKind))
+      JointRecord aRecord = anIter.Value();
+      const BRepGraph_ItemId aTargetItemA = theCopy.TargetItem(BRepGraph_ItemId(aRecord.NodeA));
+      const BRepGraph_ItemId aTargetItemB = theCopy.TargetItem(BRepGraph_ItemId(aRecord.NodeB));
+      if (!aTargetItemA.IsValid() || !aTargetItemB.IsValid())
       {
-        const BRepGraph_NodeId* aRemapped = theRemapMap.Seek(aNodeA);
-        if (aRemapped == nullptr)
-        {
-          aRemoveIds.Append(anIter.Key());
-          didChange = true;
-          continue;
-        }
-        aNodeA = *aRemapped;
+        continue;
       }
-
-      if (BRepGraph_NodeId::IsTopologyKind(aNodeB.NodeKind))
-      {
-        const BRepGraph_NodeId* aRemapped = theRemapMap.Seek(aNodeB);
-        if (aRemapped == nullptr)
-        {
-          aRemoveIds.Append(anIter.Key());
-          didChange = true;
-          continue;
-        }
-        aNodeB = *aRemapped;
-      }
-
-      if (aNodeA != aRecord.NodeA || aNodeB != aRecord.NodeB)
-      {
-        aRecord.NodeA = aNodeA;
-        aRecord.NodeB = aNodeB;
-        didChange     = true;
-      }
-    }
-
-    for (const uint64_t aRemoveId : aRemoveIds)
-    {
-      myJoints.UnBind(aRemoveId);
-    }
-
-    if (didChange)
-    {
-      touch();
+      aRecord.NodeA = aTargetItemA.NodeId();
+      aRecord.NodeB = aTargetItemB.NodeId();
+      aTarget->AddCopyPreservingId(aRecord);
     }
   }
 

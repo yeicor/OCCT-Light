@@ -69,7 +69,7 @@ occtl_status_t findUniqueOccurrenceRef(const occtl_graph_t* const   theGraph,
   for (BRepGraph_OccurrenceRefIterator anIt(theGraph->graph); anIt.More(); anIt.Next())
   {
     const BRepGraphInc::OccurrenceRef& aRef = anIt.Current();
-    if (aRef.OccurrenceDefId != theOccurrenceId)
+    if (aRef.ChildOccurrenceId != theOccurrenceId)
     {
       continue;
     }
@@ -111,71 +111,7 @@ occtl_status_t linkProductToTopologyImpl(occtl_graph_t* const    theGraph,
   }
   *theOutOccurrence = OCCTL_NODE_ID_INVALID;
 
-  BRepGraph_ProductId aProductId;
-  if (const occtl_status_t aStatus =
-        OcctL::Topo::ToTypedId(theGraph, theProduct, BRepGraph_NodeId::Kind::Product, aProductId))
-  {
-    return aStatus;
-  }
-  if (const occtl_status_t aStatus = validateTransform(thePlacement, "thePlacement"))
-  {
-    return aStatus;
-  }
-
-  const BRepGraph_NodeId aRootId = OcctL::Topo::UnpackNodeId(theRoot);
-  if (!aRootId.IsValid())
-  {
-    OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_FOUND, "theRoot is invalid or removed");
-    return OCCTL_NOT_FOUND;
-  }
-
-  const TopLoc_Location aLoc(OcctL::Geom::ToGpTrsf(thePlacement));
-
-  const BRepGraph_ProductId aTempId =
-    theGraph->graph.Editor().Products().LinkProductToTopology(aRootId, aLoc);
-
-  if (!aTempId.IsValid())
-  {
-    OcctL::Core::ErrorState::Current().Set(OCCTL_ERROR, "LinkProductToTopology failed");
-    return OCCTL_ERROR;
-  }
-
-  const BRepGraphInc::ProductDef& aTempDef = theGraph->graph.Topo().Products().Definition(aTempId);
-  if (aTempDef.OccurrenceRefIds.Length() == 0)
-  {
-    theGraph->graph.Editor().Gen().RemoveNode(BRepGraph_NodeId(aTempId));
-    OcctL::Core::ErrorState::Current().Set(OCCTL_ERROR,
-                                           "LinkProductToTopology created no occurrence");
-    return OCCTL_ERROR;
-  }
-
-  const BRepGraph_OccurrenceRefId    aFirstRefId = aTempDef.OccurrenceRefIds.Value(0);
-  const BRepGraphInc::OccurrenceRef& aFirstRef =
-    theGraph->graph.Refs().Occurrences().Entry(aFirstRefId);
-  const BRepGraph_OccurrenceId anOccurrenceId = aFirstRef.OccurrenceDefId;
-  if (!anOccurrenceId.IsValid())
-  {
-    theGraph->graph.Editor().Gen().RemoveNode(BRepGraph_NodeId(aTempId));
-    OcctL::Core::ErrorState::Current().Set(OCCTL_ERROR,
-                                           "LinkProductToTopology created invalid occurrence");
-    return OCCTL_ERROR;
-  }
-
-  BRepGraph_MutGuard<BRepGraphInc::ProductDef> aMut =
-    theGraph->graph.Editor().Products().Mut(aProductId);
-  BRepGraphInc::ProductDef& aDef = aMut.Internal();
-
-  for (int anI = 0; anI < aTempDef.OccurrenceRefIds.Length(); ++anI)
-  {
-    const BRepGraph_OccurrenceRefId aRefId = aTempDef.OccurrenceRefIds.Value(anI);
-    aDef.OccurrenceRefIds.Append(aRefId);
-  }
-
-  const_cast<BRepGraphInc::ProductDef&>(aTempDef).OccurrenceRefIds.Clear();
-  theGraph->graph.Editor().Gen().RemoveNode(BRepGraph_NodeId(aTempId));
-
-  *theOutOccurrence = OcctL::Topo::PackNodeId(anOccurrenceId);
-  return OCCTL_OK;
+  return OCCTL_UNSUPPORTED;
 }
 
 occtl_status_t linkProductsImpl(occtl_graph_t* const    theGraph,
@@ -219,7 +155,7 @@ occtl_status_t linkProductsImpl(occtl_graph_t* const    theGraph,
   const TopLoc_Location  aLoc(OcctL::Geom::ToGpTrsf(thePlacement));
   const BRepGraph_NodeId aParentOccId = OcctL::Topo::UnpackNodeId(theParentOccurrence);
 
-  const BRepGraph_OccurrenceId anOccId = theGraph->graph.Editor().Products().LinkProducts(
+  const BRepGraph_OccurrenceId anOccId = theGraph->graph.Editor().Products().Append(
     aParentId,
     aChildId,
     aLoc,
@@ -295,11 +231,11 @@ OCCTL_API occtl_status_t OCCTL_CALL
     {
       const TopLoc_Location aLoc(OcctL::Geom::ToGpTrsf(theInfo->placement));
 
-      aProductId = theGraph->graph.Editor().Products().LinkProductToTopology(aRootId, aLoc);
+      aProductId = theGraph->graph.Editor().Products().Add(aRootId, aLoc);
     }
     else
     {
-      aProductId = theGraph->graph.Editor().Products().CreateEmptyProduct();
+      aProductId = theGraph->graph.Editor().Products().Add();
     }
 
     if (!aProductId.IsValid())
@@ -490,7 +426,7 @@ OCCTL_API occtl_status_t OCCTL_CALL
     }
 
     *theOutTransform =
-      OcctL::Geom::FromGp(theGraph->graph.Refs().LocalLocation(aRefId).Transformation());
+      OcctL::Geom::FromGp(theGraph->graph.Refs().Gen().LocalLocation(aRefId).Transformation());
     return OCCTL_OK;
   });
 }

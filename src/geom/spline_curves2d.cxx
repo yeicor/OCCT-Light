@@ -20,6 +20,7 @@
 
 #include "../core/ErrorState.hxx"
 #include "../core/Guard.hxx"
+#include "../compat/occt81/RepsCompat.hxx"
 
 #include <Geom2dConvert.hxx>
 #include <Geom2dConvert_BSplineCurveToBezierCurve.hxx>
@@ -210,7 +211,7 @@ OCCTL_API occtl_status_t OCCTL_CALL
         new Geom2d_BSplineCurve(aPoles, aKnots, aMults, theInfo->degree, theInfo->is_periodic != 0);
     }
 
-    BRepGraph_Curve2DRepId aRepId = theGraph->graph.Editor().Reps().CreateCurve2D(aBspline);
+    BRepGraph_CoEdgeCurve2DRepId aRepId = OcctL::Compat::CreateCurve2DRep( theGraph->graph, aBspline);
     *theOutCurve                  = OcctL::Topo::PackRepId(aRepId);
     return OCCTL_OK;
   });
@@ -290,7 +291,7 @@ OCCTL_API occtl_status_t OCCTL_CALL
       aBezier = new Geom2d_BezierCurve(aPoles);
     }
 
-    BRepGraph_Curve2DRepId aRepId = theGraph->graph.Editor().Reps().CreateCurve2D(aBezier);
+    BRepGraph_CoEdgeCurve2DRepId aRepId = OcctL::Compat::CreateCurve2DRep(theGraph->graph, aBezier);
     *theOutCurve                  = OcctL::Topo::PackRepId(aRepId);
     return OCCTL_OK;
   });
@@ -339,7 +340,7 @@ OCCTL_API occtl_status_t OCCTL_CALL
       OcctL::Geom::Curve2DFromRep(theGraph, theInfo->basis);
     occ::handle<Geom2d_TrimmedCurve> aTrimmed =
       new Geom2d_TrimmedCurve(aBasisCurve, theInfo->u_first, theInfo->u_last, aSense);
-    BRepGraph_Curve2DRepId aRepId = theGraph->graph.Editor().Reps().CreateCurve2D(aTrimmed);
+    BRepGraph_CoEdgeCurve2DRepId aRepId = OcctL::Compat::CreateCurve2DRep(theGraph->graph, aTrimmed);
     *theOutCurve                  = OcctL::Topo::PackRepId(aRepId);
     return OCCTL_OK;
   });
@@ -421,7 +422,7 @@ OCCTL_API occtl_status_t OCCTL_CALL
     const occ::handle<Geom2d_Curve>& aBasisCurve =
       OcctL::Geom::Curve2DFromRep(theGraph, theInfo->basis);
     occ::handle<Geom2d_OffsetCurve> anOffset = new Geom2d_OffsetCurve(aBasisCurve, theInfo->offset);
-    BRepGraph_Curve2DRepId aRepId = theGraph->graph.Editor().Reps().CreateCurve2D(anOffset);
+    BRepGraph_CoEdgeCurve2DRepId aRepId = OcctL::Compat::CreateCurve2DRep( theGraph->graph, anOffset);
     *theOutCurve                  = OcctL::Topo::PackRepId(aRepId);
     return OCCTL_OK;
   });
@@ -1061,7 +1062,7 @@ OCCTL_API occtl_status_t OCCTL_CALL
       for (int anI = 1; anI <= aNb; ++anI)
       {
         const occ::handle<Geom2d_BezierCurve> aBezier = aConverter.Arc(anI);
-        BRepGraph_Curve2DRepId aRepId = theGraph->graph.Editor().Reps().CreateCurve2D(aBezier);
+        BRepGraph_CoEdgeCurve2DRepId aRepId = OcctL::Compat::CreateCurve2DRep(theGraph->graph, aBezier);
         aSegments[anI - 1]            = OcctL::Topo::PackRepId(aRepId);
       }
 

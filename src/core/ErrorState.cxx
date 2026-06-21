@@ -52,9 +52,10 @@ private:
 ErrorState::ErrorState() noexcept
     : myView{OCCTL_OK, "", occtl_uid_t{0}, 0u},
       myBuffer{},
-      myMessage(myBuffer, static_cast<size_t>(THE_MAX_ERROR_MSG)),
       myLength(0)
 {
+  // myBuffer is zero-initialized above; myMessage wraps it as a bounds-checked
+  // array via NCollection_Array1 when available.
 }
 
 //==================================================================================================
@@ -86,23 +87,16 @@ void ErrorState::Set(const occtl_status_t theStatus,
   const int aInputLen = static_cast<int>(theMessage.size());
   const int aCopyLen  = std::min(aInputLen, THE_MAX_ERROR_MSG - 1);
 
-  try
+  for (int anIdx = 0; anIdx < aCopyLen; ++anIdx)
   {
-    for (int anIdx = 0; anIdx < aCopyLen; ++anIdx)
-    {
-      myMessage.ChangeValue(anIdx) =
-        static_cast<char>(theMessage.data()[static_cast<size_t>(anIdx)]);
-    }
-    myMessage.ChangeValue(aCopyLen) = '\0';
-    myLength                        = aCopyLen;
+    myBuffer[anIdx] =
+      static_cast<char>(theMessage.data()[static_cast<size_t>(anIdx)]);
   }
-  catch (...)
-  {
-    myLength = 0;
-  }
+  myBuffer[aCopyLen] = '\0';
+  myLength           = aCopyLen;
 
   myView.status   = theStatus;
-  myView.message  = myLength > 0 ? &myMessage.ChangeValue(0) : "";
+  myView.message  = myLength > 0 ? &myBuffer[0] : "";
   myView.source   = theSourceUid;
   myView.extended = theExtended;
 }
@@ -111,7 +105,7 @@ void ErrorState::Set(const occtl_status_t theStatus,
 
 const occtl_error_t* ErrorState::AsCPointer() noexcept
 {
-  myView.message = myLength > 0 ? &myMessage.ChangeValue(0) : "";
+  myView.message = myLength > 0 ? &myBuffer[0] : "";
   return &myView;
 }
 

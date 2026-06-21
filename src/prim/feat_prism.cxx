@@ -148,7 +148,7 @@ static occtl_status_t finishFeatureResult(
 {
   const BRepGraph::ShapesView::Result aResult =
     theGraph->graph.Shapes().AddWithHistory(theShape, theInputs, theSourceHistory, theOpLabel);
-  if (!aResult.Ok)
+  if (!aResult.IsOk())
   {
     OcctL::Core::ErrorState::Current().Set(
       OCCTL_TOPOLOGY_INVALID,

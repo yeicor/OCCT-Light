@@ -21,6 +21,7 @@
 #include <BRepGraph_RefsIterator.hxx>
 #include <BRepGraph_TopoView.hxx>
 #include <BRepGraph_UIDsView.hxx>
+#include <RepUIDHelpers.hxx>
 
 #include <occtl/occtl_topo.h>
 
@@ -73,7 +74,8 @@ void ForEachActiveRef(const BRepGraph& theGraph, Visit theVisit)
   aDo(BRepGraph_ShellRefIterator(theGraph));
   aDo(BRepGraph_FaceRefIterator(theGraph));
   aDo(BRepGraph_WireRefIterator(theGraph));
-  aDo(BRepGraph_CoEdgeRefIterator(theGraph));
+  // CoEdge refs are not independently iterable in OCCT 8.0.0-p1 (they are owned by wires).
+  // aDo(BRepGraph_CoEdgeRefIterator(theGraph));
   aDo(BRepGraph_VertexRefIterator(theGraph));
   aDo(BRepGraph_SolidRefIterator(theGraph));
   aDo(BRepGraph_ChildRefIterator(theGraph));
@@ -184,7 +186,7 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_graph_uid_kind(const occtl_graph_t* co
       return OCCTL_NOT_FOUND;
     }
 
-    *theOutKind = OcctL::Topo::ToAbiNodeKind(aUid.Kind());
+    *theOutKind = OcctL::Topo::ToAbiNodeKind(aUid.Kind);
     return OCCTL_OK;
   });
 }
@@ -234,7 +236,7 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_graph_ref_uid_kind(const occtl_graph_t
       return OCCTL_NOT_FOUND;
     }
 
-    *theOutKind = OcctL::Topo::ToAbiRefKind(aUid.Kind());
+    *theOutKind = OcctL::Topo::ToAbiRefKind(aUid.Kind);
     return OCCTL_OK;
   });
 }
@@ -338,14 +340,14 @@ OCCTL_API occtl_status_t OCCTL_CALL
       return OCCTL_INVALID_ARGUMENT;
     }
 
-    const BRepGraph_RepUID aUid = OcctL::Topo::UnpackRepUID(theUid);
-    if (!theGraph->graph.UIDs().Has(aUid))
+     const BRepGraph_RepUID aUid = OcctL::Topo::UnpackRepUID(theUid);
+    if (!OcctL::Compat::UidsHas(theGraph->graph, aUid))
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_FOUND, "RepUID not found");
       return OCCTL_NOT_FOUND;
     }
 
-    const BRepGraph_RepId aRepId = theGraph->graph.UIDs().RepIdFrom(aUid);
+    const BRepGraph_RepId aRepId = OcctL::Compat::UidToRepId(theGraph->graph, aUid);
     *theOutRepId                 = OcctL::Topo::PackRepId(aRepId);
     return OCCTL_OK;
   });
@@ -372,7 +374,7 @@ OCCTL_API occtl_status_t OCCTL_CALL
       return OCCTL_NOT_FOUND;
     }
 
-    const BRepGraph_RepUID aUid = theGraph->graph.UIDs().Of(aRepId);
+    const BRepGraph_RepUID aUid = OcctL::Compat::RepIdToRepUID(theGraph->graph, aRepId);
     if (!aUid.IsValid())
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_FOUND, "RepId not found");

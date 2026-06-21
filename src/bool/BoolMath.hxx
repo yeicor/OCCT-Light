@@ -197,7 +197,7 @@ inline occtl_status_t AddResultToGraph(
     theBuildHistory
       ? theGraph->graph.Shapes().AddWithHistory(theShape, theInputs, theHistory, theOpLabel)
       : theGraph->graph.Shapes().Add(theShape, anOpts);
-  if (!aRes.Ok)
+  if (!aRes.IsOk())
   {
     OcctL::Core::ErrorState::Current().Set(
       OCCTL_TOPOLOGY_INVALID,

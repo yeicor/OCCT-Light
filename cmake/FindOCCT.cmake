@@ -47,54 +47,84 @@ set(_OCCTL_TOOLKIT_MODULE_Draw
   TKDraw TKTopTest TKViewerTest TKOpenGlTest TKDEDRAW TKXSDRAW TKXSDRAWDE
   TKXSDRAWObj TKXSDRAWGltf TKXSDRAWPly)
 
-# Determine which OpenCASCADE modules are required for the requested toolkits.
-set(_occt_required_modules "")
-foreach(_toolkit IN LISTS OCCT_FIND_COMPONENTS)
-  set(_found_module FALSE)
-  foreach(_module IN ITEMS FoundationClasses ModelingData ModelingAlgorithms
-                           Visualization ApplicationFramework DataExchange Draw)
-    if(_toolkit IN_LIST _OCCTL_TOOLKIT_MODULE_${_module})
-      list(APPEND _occt_required_modules "${_module}")
-      set(_found_module TRUE)
-      break()
-    endif()
-  endforeach()
-  if(NOT _found_module)
-    message(WARNING "FindOCCT: toolkit '${_toolkit}' is not in the known module map; "
-                    "all OpenCASCADE modules will be loaded as a fallback.")
-    set(_occt_required_modules "")
-    break()
-  endif()
-endforeach()
-list(REMOVE_DUPLICATES _occt_required_modules)
+# Load OCCT configuration.
+#
+# OCCT 8.0.0-p1 exports all targets in a single OpenCASCADETargets.cmake (not
+# per-module files).  The standard OpenCASCADEConfig.cmake tries to include
+# per-module targets files and errors when they do not exist.  We bypass that
+# by directly including OpenCASCADEConfig.cmake in a mode where failures from
+# per-module includes are suppressed, then loading the monolithic targets file.
+#
+# Strategy:
+#   1. Call find_package(OpenCASCADE CONFIG QUIET) — the per-module includes
+#      may emit CMake errors that stop configuration.  To avoid this we wrap
+#      the call in a try_include pattern.  If the standard include fails we
+#      set up paths manually and load the single targets file directly.
 
-# OCCT 8.0+ has a circular dependency between Visualization (TKV3d → TKDE) and
-# DataExchange (TKDECascade → TKV3d).  No linear component order satisfies both,
-# so each module's targets file unconditionally sets OpenCASCADE_FOUND=FALSE when
-# loaded ahead of its cyclic peer — even though every add_library(... IMPORTED)
-# inside the file still executes.  We resolve the cycle by loading the full set
-# of likely-needed modules at once and trusting the post-load target-existence
-# check below as the actual source of truth.
-if("Visualization" IN_LIST _occt_required_modules
-   OR "DataExchange" IN_LIST _occt_required_modules
-   OR "ApplicationFramework" IN_LIST _occt_required_modules)
-  list(APPEND _occt_required_modules
-       FoundationClasses ModelingData ModelingAlgorithms
-       Visualization ApplicationFramework DataExchange)
-  list(REMOVE_DUPLICATES _occt_required_modules)
+# Pre-set OpenCASCADE_DIR so find_package finds the right install.
+if(OCCT_DIR AND NOT OpenCASCADE_DIR)
+  set(OpenCASCADE_DIR "${OCCT_DIR}" CACHE PATH "OpenCASCADE CMake config dir" FORCE)
 endif()
 
-# Load only the required modules (or all if the mapping is incomplete).
-if(_occt_required_modules)
-  find_package(OpenCASCADE CONFIG QUIET COMPONENTS ${_occt_required_modules})
-else()
-  # Fallback: load every module via OPTIONAL_COMPONENTS so that a partially-broken
-  # install (e.g. DataExchange referencing TKDE before Visualization is loaded) does
-  # not poison OpenCASCADE_FOUND.
-  find_package(OpenCASCADE CONFIG QUIET
-    OPTIONAL_COMPONENTS
-      FoundationClasses ModelingData ModelingAlgorithms
-      Visualization ApplicationFramework DataExchange Draw)
+# Read the version and paths from OpenCASCADEConfig.cmake without triggering
+# the per-module include loop that errors on missing files.
+if(EXISTS "${OpenCASCADE_DIR}/OpenCASCADEConfig.cmake")
+  # Read just the non-include parts of the config file.
+  set(_occt_config_file "${OpenCASCADE_DIR}/OpenCASCADEConfig.cmake")
+  file(READ "${_occt_config_file}" _occt_config_content)
+
+  # Extract version
+  string(REGEX MATCH "set \\(OpenCASCADE_MAJOR_VERSION\\s+\"([^\"]+)\"\\)" _dummy "${_occt_config_content}")
+  set(OpenCASCADE_MAJOR_VERSION "${CMAKE_MATCH_1}")
+  string(REGEX MATCH "set \\(OpenCASCADE_MINOR_VERSION\\s+\"([^\"]+)\"\\)" _dummy "${_occt_config_content}")
+  set(OpenCASCADE_MINOR_VERSION "${CMAKE_MATCH_1}")
+  string(REGEX MATCH "set \\(OpenCASCADE_MAINTENANCE_VERSION\\s+\"([^\"]+)\"\\)" _dummy "${_occt_config_content}")
+  set(OpenCASCADE_MAINTENANCE_VERSION "${CMAKE_MATCH_1}")
+
+  # Compute install prefix from the config file location (same logic as OpenCASCADEConfig.cmake).
+  # OpenCASCADEConfig.cmake does one LEVEL of get_filename_component to go from
+  # <prefix>/lib/cmake/opencascade/OpenCASCADEConfig.cmake → <prefix>.
+  # In a build-directory layout the config is at <build>/OpenCASCADEConfig.cmake,
+  # so one PATH component gives <build>.
+  get_filename_component(_occt_prefix "${_occt_config_file}" PATH)
+  if(_occt_prefix MATCHES "/cmake$")
+    get_filename_component(_occt_prefix "${_occt_prefix}" PATH)
+  endif()
+  if(_occt_prefix MATCHES "/lib(32|64)?$")
+    get_filename_component(_occt_prefix "${_occt_prefix}" PATH)
+  endif()
+  if(_occt_prefix MATCHES "/share$")
+    get_filename_component(_occt_prefix "${_occt_prefix}" PATH)
+  endif()
+  set(OpenCASCADE_INSTALL_PREFIX "${_occt_prefix}")
+
+  # Set paths
+  set(OpenCASCADE_INCLUDE_DIR "${OpenCASCADE_INSTALL_PREFIX}/include/opencascade")
+  set(OpenCASCADE_LIBRARY_DIR "${OpenCASCADE_INSTALL_PREFIX}/lib")
+  set(OpenCASCADE_VERSION
+      "${OpenCASCADE_MAJOR_VERSION}.${OpenCASCADE_MINOR_VERSION}.${OpenCASCADE_MAINTENANCE_VERSION}")
+
+  # Include compile definitions
+  file(GLOB _occt_cdef_files
+       "${OpenCASCADE_DIR}/OpenCASCADECompileDefinitionsAndFlags-*.cmake")
+  foreach(_f ${_occt_cdef_files})
+    include("${_f}")
+  endforeach()
+
+  # Import the single monolithic targets file
+  include("${OpenCASCADE_DIR}/OpenCASCADETargets.cmake" OPTIONAL)
+
+  # OCCT 8.0.0-p1's targets file does not set INTERFACE_INCLUDE_DIRECTORIES on
+  # imported targets.  Add the include directory globally so that targets linking
+  # OCCT libs can find headers like gp_Ax1.hxx, BRepGraph.hxx, etc.
+  include_directories(SYSTEM "${OpenCASCADE_INCLUDE_DIR}")
+
+  set(OpenCASCADE_FOUND TRUE)
+endif()
+
+if(NOT OpenCASCADE_FOUND)
+  # Fallback: let CMake search normally
+  find_package(OpenCASCADE CONFIG QUIET)
 endif()
 
 # Validate every requested toolkit target is present.  Target existence is the

@@ -33,6 +33,7 @@
 #include <BRepLib.hxx>
 #include <Geom2d_Line.hxx>
 #include <Geom_CylindricalSurface.hxx>
+#include <TopoDS_Shape.hxx>
 
 #include <gp_Ax3.hxx>
 #include <gp_Dir2d.hxx>
@@ -132,7 +133,7 @@ OCCTL_API occtl_status_t OCCTL_CALL
                                              "BRepBuilderAPI_MakeWire failed for helix");
       return OCCTL_GEOMETRY_INVALID;
     }
-    return OcctL::Prim::AddTopologyRoot(theGraph, aWireMaker.Wire(), *theOutWire);
+    return OcctL::Prim::AddTopologyRoot(theGraph, aWireMaker.Shape(), *theOutWire);
   });
 }
 

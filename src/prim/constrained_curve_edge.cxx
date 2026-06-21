@@ -28,6 +28,8 @@
 #include <BRepBuilderAPI_MakeEdge.hxx>
 #include <GeomAPI.hxx>
 #include <Geom_Curve.hxx>
+#include <TopoDS_Edge.hxx>
+#include <TopoDS_Shape.hxx>
 #include <gp_Ax2.hxx>
 #include <gp_Pln.hxx>
 #include <gp_Vec.hxx>

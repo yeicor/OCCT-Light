@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+env:
+  BUILD_TYPE: RelWithDebInfo
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-24.04
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update -qq
+        sudo apt-get install -y -qq \
+          build-essential cmake ninja-build \
+          libgl-dev libglu1-mesa-dev \
+          libx11-dev libxext-dev libxmu-dev libxi-dev \
+          libfreetype-dev
+
+    - name: Cache OCCT build
+      id: cache-occt
+      uses: actions/cache@v4
+      with:
+        path: /tmp/occt-build
+        key: occt-8.0.0-p1-ubuntu-24.04-v2
+
+    - name: Build OCCT 8.0.0-p1
+      if: steps.cache-occt.outputs.cache-hit != 'true'
+      run: |
+        git clone --depth 1 --branch V8_0_0_p1 \
+          https://github.com/Open-Cascade-SAS/OCCT.git /tmp/occt-src
+        git clone --depth 1 https://github.com/Tencent/rapidjson.git /tmp/rapidjson
+        cmake -S /tmp/occt-src -B /tmp/occt-build \
+          -DBUILD_MODULE_FoundationClasses=ON \
+          -DBUILD_MODULE_ModelingData=ON \
+          -DBUILD_MODULE_ModelingAlgorithms=ON \
+          -DBUILD_MODULE_ApplicationFramework=ON \
+          -DBUILD_MODULE_DataExchange=ON \
+          -DBUILD_MODULE_Visualization=OFF \
+          -DBUILD_MODULE_Draw=OFF \
+          -DBUILD_LIBRARY_TYPE=Shared \
+          -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+          -DUSE_RAPIDJSON=ON \
+          -D3RDPARTY_RAPIDJSON_DIR=/tmp/rapidjson \
+          -D3RDPARTY_RAPIDJSON_INCLUDE_DIR=/tmp/rapidjson/include \
+          -DUSE_FREEIMAGE=OFF \
+          -DUSE_TBB=OFF \
+          -DINSTALL_DIR=/tmp/occt-install
+        cmake --build /tmp/occt-build -j$(nproc)
+
+    - name: Configure OCCT-Light (full preset)
+      run: |
+        cmake --preset full -DOCCT_DIR=/tmp/occt-build
+
+    - name: Build OCCT-Light
+      run: |
+        cmake --build --preset full
+
+    - name: Run tests
+      run: |
+        ctest --preset full --output-on-failure

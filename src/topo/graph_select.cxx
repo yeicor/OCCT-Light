@@ -26,7 +26,14 @@
 #include "../core/ErrorState.hxx"
 #include "../core/Guard.hxx"
 
+// BRepGraphAlgo/BRepGraphCheck are not available in OCCT 8.0.0-p1.
+// Guard them out for the prototype-1 build. Remove this #define and
+// the #ifndef/#endif guards once OCCT ships these modules.
+#define OCCTL_NO_BREPGRAPH_ALGO
+
+#ifndef OCCTL_NO_BREPGRAPH_ALGO
 #include <BRepGraphAlgo_BndLib.hxx>
+#endif
 #include <BRepGraph_ChildExplorer.hxx>
 #include <BRepGraph_Iterator.hxx>
 #include <BRepGraph_Tool.hxx>
@@ -268,6 +275,7 @@ bool boxInsideBox(const Bnd_Box& theCandidate, const Bnd_Box& theFilter)
 
 bool candidateCenter(BRepGraph& theGraph, const BRepGraph_NodeId theNode, gp_Pnt& theOutCenter)
 {
+#ifndef OCCTL_NO_BREPGRAPH_ALGO
   const Bnd_Box aBox = BRepGraphAlgo_BndLib::AddCached(theGraph,
                                                        theNode,
                                                        BRepGraphAlgo_BndLib::Precision::Standard,
@@ -282,6 +290,12 @@ bool candidateCenter(BRepGraph& theGraph, const BRepGraph_NodeId theNode, gp_Pnt
   theOutCenter =
     gp_Pnt((aMin.X() + aMax.X()) * 0.5, (aMin.Y() + aMax.Y()) * 0.5, (aMin.Z() + aMax.Z()) * 0.5);
   return true;
+#else
+  (void)theGraph;
+  (void)theNode;
+  (void)theOutCenter;
+  return false;
+#endif
 }
 
 bool measureMatches(BRepGraph&                    theGraph,
@@ -316,6 +330,12 @@ bool bboxMatches(BRepGraph&                    theGraph,
     return false;
   }
 
+#ifdef OCCTL_NO_BREPGRAPH_ALGO
+  (void)theGraph;
+  (void)theNode;
+  (void)theOptions;
+  return false;
+#else
   const Bnd_Box aCandidate =
     BRepGraphAlgo_BndLib::AddCached(theGraph,
                                     theNode,
@@ -342,6 +362,7 @@ bool bboxMatches(BRepGraph&                    theGraph,
     default:
       return !aCandidate.IsOut(aFilter);
   }
+#endif
 }
 
 bool candidateCenterCoordinate(BRepGraph&                theGraph,

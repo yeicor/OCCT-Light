@@ -68,7 +68,7 @@ inline occtl_status_t AddTopologyRoot(occtl_graph_t* const theGraph,
   anOpts.CreateAutoProduct = false;
 
   const BRepGraph::ShapesView::Result aRes = theGraph->graph.Shapes().Add(theShape, anOpts);
-  if (!aRes.Ok)
+  if (!aRes.IsOk())
   {
     OcctL::Core::ErrorState::Current().Set(
       OCCTL_TOPOLOGY_INVALID,
@@ -94,7 +94,7 @@ inline occtl_status_t AddTopologyRootTracked(
   anOpts.TrackAddedNodes   = true;
 
   const BRepGraph::ShapesView::Result aRes = theGraph->graph.Shapes().Add(theShape, anOpts);
-  if (!aRes.Ok)
+  if (!aRes.IsOk())
   {
     OcctL::Core::ErrorState::Current().Set(
       OCCTL_TOPOLOGY_INVALID,

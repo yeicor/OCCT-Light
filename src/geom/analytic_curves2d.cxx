@@ -21,6 +21,7 @@
 #include "../topo/GraphHandle.hxx"
 #include "../topo/TopoMath.hxx"
 #include "RepLookup.hxx"
+#include "../compat/occt81/RepsCompat.hxx"
 
 #include <Geom2dAPI_ProjectPointOnCurve.hxx>
 #include <Geom2dAdaptor_Curve.hxx>
@@ -416,7 +417,7 @@ OCCTL_API occtl_status_t OCCTL_CALL
       occ::handle<Geom2d_Circle>       aBasis = new Geom2d_Circle(aSolver.ThisSolution(aSolution));
       occ::handle<Geom2d_TrimmedCurve> aTrimmed =
         new Geom2d_TrimmedCurve(aBasis, aFirst, aLast, true);
-      BRepGraph_Curve2DRepId aRepId = theGraph->graph.Editor().Reps().CreateCurve2D(aTrimmed);
+      BRepGraph_CoEdgeCurve2DRepId aRepId = OcctL::Compat::CreateCurve2DRep(theGraph->graph, aTrimmed);
       *theOutCurve                  = OcctL::Topo::PackRepId(aRepId);
       return OCCTL_OK;
     }
@@ -1094,7 +1095,7 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_curve2d_create_line(occtl_graph_t*    
       return OCCTL_INVALID_ARGUMENT;
     }
     occ::handle<Geom2d_Curve> aCurve = new Geom2d_Line(OcctL::Geom::ToGpLin2d(theLine));
-    BRepGraph_Curve2DRepId    aRepId = theGraph->graph.Editor().Reps().CreateCurve2D(aCurve);
+    BRepGraph_CoEdgeCurve2DRepId    aRepId = OcctL::Compat::CreateCurve2DRep(theGraph->graph, aCurve);
     *theOutId                        = OcctL::Topo::PackRepId(aRepId);
     return OCCTL_OK;
   });
@@ -1123,7 +1124,7 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_curve2d_create_circle(occtl_graph_t*  
       return OCCTL_GEOMETRY_INVALID;
     }
     occ::handle<Geom2d_Curve> aCurve = new Geom2d_Circle(OcctL::Geom::ToGpCirc2d(theCircle));
-    BRepGraph_Curve2DRepId    aRepId = theGraph->graph.Editor().Reps().CreateCurve2D(aCurve);
+    BRepGraph_CoEdgeCurve2DRepId    aRepId = OcctL::Compat::CreateCurve2DRep(theGraph->graph, aCurve);
     *theOutId                        = OcctL::Topo::PackRepId(aRepId);
     return OCCTL_OK;
   });
@@ -1154,7 +1155,7 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_curve2d_create_ellipse(occtl_graph_t* 
       return OCCTL_GEOMETRY_INVALID;
     }
     occ::handle<Geom2d_Curve> aCurve = new Geom2d_Ellipse(OcctL::Geom::ToGpElips2d(theEllipse));
-    BRepGraph_Curve2DRepId    aRepId = theGraph->graph.Editor().Reps().CreateCurve2D(aCurve);
+    BRepGraph_CoEdgeCurve2DRepId    aRepId = OcctL::Compat::CreateCurve2DRep(theGraph->graph, aCurve);
     *theOutId                        = OcctL::Topo::PackRepId(aRepId);
     return OCCTL_OK;
   });
@@ -1184,7 +1185,7 @@ OCCTL_API occtl_status_t OCCTL_CALL
       return OCCTL_GEOMETRY_INVALID;
     }
     occ::handle<Geom2d_Curve> aCurve = new Geom2d_Hyperbola(OcctL::Geom::ToGpHypr2d(theHyperbola));
-    BRepGraph_Curve2DRepId    aRepId = theGraph->graph.Editor().Reps().CreateCurve2D(aCurve);
+    BRepGraph_CoEdgeCurve2DRepId    aRepId = OcctL::Compat::CreateCurve2DRep(theGraph->graph, aCurve);
     *theOutId                        = OcctL::Topo::PackRepId(aRepId);
     return OCCTL_OK;
   });
@@ -1215,7 +1216,7 @@ OCCTL_API occtl_status_t OCCTL_CALL
       return OCCTL_GEOMETRY_INVALID;
     }
     occ::handle<Geom2d_Curve> aCurve = new Geom2d_Parabola(OcctL::Geom::ToGpParab2d(theParabola));
-    BRepGraph_Curve2DRepId    aRepId = theGraph->graph.Editor().Reps().CreateCurve2D(aCurve);
+    BRepGraph_CoEdgeCurve2DRepId    aRepId = OcctL::Compat::CreateCurve2DRep(theGraph->graph, aCurve);
     *theOutId                        = OcctL::Topo::PackRepId(aRepId);
     return OCCTL_OK;
   });
@@ -1246,7 +1247,7 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_curve2d_kind(const occtl_graph_t* theG
       OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_FOUND, "curve id is invalid");
       return OCCTL_NOT_FOUND;
     }
-    if (aRawId.RepKind != BRepGraph_RepId::Kind::Curve2D)
+    if (aRawId.RepKind != BRepGraph_RepId::Kind::CoEdgeCurve2D)
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND, "id is not a Curve2D rep");
       return OCCTL_WRONG_KIND;
@@ -1280,7 +1281,7 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_curve2d_is_periodic(const occtl_graph_
       OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_FOUND, "curve id is invalid");
       return OCCTL_NOT_FOUND;
     }
-    if (aRawId.RepKind != BRepGraph_RepId::Kind::Curve2D)
+    if (aRawId.RepKind != BRepGraph_RepId::Kind::CoEdgeCurve2D)
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND, "id is not a Curve2D rep");
       return OCCTL_WRONG_KIND;
@@ -1314,7 +1315,7 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_curve2d_is_closed(const occtl_graph_t*
       OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_FOUND, "curve id is invalid");
       return OCCTL_NOT_FOUND;
     }
-    if (aRawId.RepKind != BRepGraph_RepId::Kind::Curve2D)
+    if (aRawId.RepKind != BRepGraph_RepId::Kind::CoEdgeCurve2D)
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND, "id is not a Curve2D rep");
       return OCCTL_WRONG_KIND;
@@ -1349,7 +1350,7 @@ OCCTL_API occtl_status_t OCCTL_CALL
       OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_FOUND, "curve id is invalid");
       return OCCTL_NOT_FOUND;
     }
-    if (aRawId.RepKind != BRepGraph_RepId::Kind::Curve2D)
+    if (aRawId.RepKind != BRepGraph_RepId::Kind::CoEdgeCurve2D)
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND, "id is not a Curve2D rep");
       return OCCTL_WRONG_KIND;
@@ -1382,7 +1383,7 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_curve2d_parameter_range(const occtl_gr
       OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_FOUND, "curve id is invalid");
       return OCCTL_NOT_FOUND;
     }
-    if (aRawId.RepKind != BRepGraph_RepId::Kind::Curve2D)
+    if (aRawId.RepKind != BRepGraph_RepId::Kind::CoEdgeCurve2D)
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND, "id is not a Curve2D rep");
       return OCCTL_WRONG_KIND;
@@ -1425,7 +1426,7 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_curve2d_as_line(const occtl_graph_t* t
       OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_FOUND, "curve id is invalid");
       return OCCTL_NOT_FOUND;
     }
-    if (aRawId.RepKind != BRepGraph_RepId::Kind::Curve2D)
+    if (aRawId.RepKind != BRepGraph_RepId::Kind::CoEdgeCurve2D)
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND, "id is not a Curve2D rep");
       return OCCTL_WRONG_KIND;
@@ -1465,7 +1466,7 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_curve2d_as_circle(const occtl_graph_t*
       OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_FOUND, "curve id is invalid");
       return OCCTL_NOT_FOUND;
     }
-    if (aRawId.RepKind != BRepGraph_RepId::Kind::Curve2D)
+    if (aRawId.RepKind != BRepGraph_RepId::Kind::CoEdgeCurve2D)
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND, "id is not a Curve2D rep");
       return OCCTL_WRONG_KIND;
@@ -1505,7 +1506,7 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_curve2d_as_ellipse(const occtl_graph_t
       OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_FOUND, "curve id is invalid");
       return OCCTL_NOT_FOUND;
     }
-    if (aRawId.RepKind != BRepGraph_RepId::Kind::Curve2D)
+    if (aRawId.RepKind != BRepGraph_RepId::Kind::CoEdgeCurve2D)
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND, "id is not a Curve2D rep");
       return OCCTL_WRONG_KIND;
@@ -1546,7 +1547,7 @@ OCCTL_API occtl_status_t OCCTL_CALL
       OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_FOUND, "curve id is invalid");
       return OCCTL_NOT_FOUND;
     }
-    if (aRawId.RepKind != BRepGraph_RepId::Kind::Curve2D)
+    if (aRawId.RepKind != BRepGraph_RepId::Kind::CoEdgeCurve2D)
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND, "id is not a Curve2D rep");
       return OCCTL_WRONG_KIND;
@@ -1587,7 +1588,7 @@ OCCTL_API occtl_status_t OCCTL_CALL
       OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_FOUND, "curve id is invalid");
       return OCCTL_NOT_FOUND;
     }
-    if (aRawId.RepKind != BRepGraph_RepId::Kind::Curve2D)
+    if (aRawId.RepKind != BRepGraph_RepId::Kind::CoEdgeCurve2D)
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND, "id is not a Curve2D rep");
       return OCCTL_WRONG_KIND;
@@ -1629,14 +1630,14 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_curve2d_reverse(occtl_graph_t*  theGra
       OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_FOUND, "curve id is invalid");
       return OCCTL_NOT_FOUND;
     }
-    if (aRawId.RepKind != BRepGraph_RepId::Kind::Curve2D)
+    if (aRawId.RepKind != BRepGraph_RepId::Kind::CoEdgeCurve2D)
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND, "id is not a Curve2D rep");
       return OCCTL_WRONG_KIND;
     }
     const occ::handle<Geom2d_Curve>& aCurve    = OcctL::Geom::Curve2DFromRep(theGraph, theCurveId);
     occ::handle<Geom2d_Curve>        aReversed = aCurve->Reversed();
-    BRepGraph_Curve2DRepId aRepId = theGraph->graph.Editor().Reps().CreateCurve2D(aReversed);
+    BRepGraph_CoEdgeCurve2DRepId aRepId = OcctL::Compat::CreateCurve2DRep(theGraph->graph, aReversed);
     *theOutId                     = OcctL::Topo::PackRepId(aRepId);
     return OCCTL_OK;
   });
@@ -1670,7 +1671,7 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_curve2d_transformed(occtl_graph_t*  th
       OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_FOUND, "curve id is invalid");
       return OCCTL_NOT_FOUND;
     }
-    if (aRawId.RepKind != BRepGraph_RepId::Kind::Curve2D)
+    if (aRawId.RepKind != BRepGraph_RepId::Kind::CoEdgeCurve2D)
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND, "id is not a Curve2D rep");
       return OCCTL_WRONG_KIND;
@@ -1687,7 +1688,7 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_curve2d_transformed(occtl_graph_t*  th
                     theTranslateY);
     occ::handle<Geom2d_Curve> aTransformed =
       occ::handle<Geom2d_Curve>::DownCast(aCurve->Transformed(aTrsf));
-    BRepGraph_Curve2DRepId aRepId = theGraph->graph.Editor().Reps().CreateCurve2D(aTransformed);
+    BRepGraph_CoEdgeCurve2DRepId aRepId = OcctL::Compat::CreateCurve2DRep(theGraph->graph, aTransformed);
     *theOutId                     = OcctL::Topo::PackRepId(aRepId);
     return OCCTL_OK;
   });
@@ -1717,7 +1718,7 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_curve2d_translated(occtl_graph_t*  the
       OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_FOUND, "curve id is invalid");
       return OCCTL_NOT_FOUND;
     }
-    if (aRawId.RepKind != BRepGraph_RepId::Kind::Curve2D)
+    if (aRawId.RepKind != BRepGraph_RepId::Kind::CoEdgeCurve2D)
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND, "id is not a Curve2D rep");
       return OCCTL_WRONG_KIND;
@@ -1727,7 +1728,7 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_curve2d_translated(occtl_graph_t*  the
     aTrsf.SetTranslation(OcctL::Geom::ToGp(theDelta));
     occ::handle<Geom2d_Curve> aTranslated =
       occ::handle<Geom2d_Curve>::DownCast(aCurve->Transformed(aTrsf));
-    BRepGraph_Curve2DRepId aRepId = theGraph->graph.Editor().Reps().CreateCurve2D(aTranslated);
+    BRepGraph_CoEdgeCurve2DRepId aRepId = OcctL::Compat::CreateCurve2DRep(theGraph->graph, aTranslated);
     *theOutId                     = OcctL::Topo::PackRepId(aRepId);
     return OCCTL_OK;
   });
@@ -1757,7 +1758,7 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_curve2d_rotated(occtl_graph_t*  theGra
       OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_FOUND, "curve id is invalid");
       return OCCTL_NOT_FOUND;
     }
-    if (aRawId.RepKind != BRepGraph_RepId::Kind::Curve2D)
+    if (aRawId.RepKind != BRepGraph_RepId::Kind::CoEdgeCurve2D)
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND, "id is not a Curve2D rep");
       return OCCTL_WRONG_KIND;
@@ -1767,7 +1768,7 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_curve2d_rotated(occtl_graph_t*  theGra
     aTrsf.SetRotation(gp::Origin2d(), theAngle);
     occ::handle<Geom2d_Curve> aRotated =
       occ::handle<Geom2d_Curve>::DownCast(aCurve->Transformed(aTrsf));
-    BRepGraph_Curve2DRepId aRepId = theGraph->graph.Editor().Reps().CreateCurve2D(aRotated);
+    BRepGraph_CoEdgeCurve2DRepId aRepId = OcctL::Compat::CreateCurve2DRep(theGraph->graph, aRotated);
     *theOutId                     = OcctL::Topo::PackRepId(aRepId);
     return OCCTL_OK;
   });
@@ -1803,7 +1804,7 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_curve2d_scaled(occtl_graph_t*  theGrap
       OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_FOUND, "curve id is invalid");
       return OCCTL_NOT_FOUND;
     }
-    if (aRawId.RepKind != BRepGraph_RepId::Kind::Curve2D)
+    if (aRawId.RepKind != BRepGraph_RepId::Kind::CoEdgeCurve2D)
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND, "id is not a Curve2D rep");
       return OCCTL_WRONG_KIND;
@@ -1813,7 +1814,7 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_curve2d_scaled(occtl_graph_t*  theGrap
     aTrsf.SetScale(OcctL::Geom::ToGp(theOrigin), theFactor);
     occ::handle<Geom2d_Curve> aScaled =
       occ::handle<Geom2d_Curve>::DownCast(aCurve->Transformed(aTrsf));
-    BRepGraph_Curve2DRepId aRepId = theGraph->graph.Editor().Reps().CreateCurve2D(aScaled);
+    BRepGraph_CoEdgeCurve2DRepId aRepId = OcctL::Compat::CreateCurve2DRep(theGraph->graph, aScaled);
     *theOutId                     = OcctL::Topo::PackRepId(aRepId);
     return OCCTL_OK;
   });
@@ -1844,7 +1845,7 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_curve2d_length(const occtl_graph_t* th
       OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_FOUND, "curve id is invalid");
       return OCCTL_NOT_FOUND;
     }
-    if (aRawId.RepKind != BRepGraph_RepId::Kind::Curve2D)
+    if (aRawId.RepKind != BRepGraph_RepId::Kind::CoEdgeCurve2D)
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND, "id is not a Curve2D rep");
       return OCCTL_WRONG_KIND;
@@ -1881,7 +1882,7 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_curve2d_project_point(const occtl_grap
       OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_FOUND, "curve id is invalid");
       return OCCTL_NOT_FOUND;
     }
-    if (aRawId.RepKind != BRepGraph_RepId::Kind::Curve2D)
+    if (aRawId.RepKind != BRepGraph_RepId::Kind::CoEdgeCurve2D)
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND, "id is not a Curve2D rep");
       return OCCTL_WRONG_KIND;

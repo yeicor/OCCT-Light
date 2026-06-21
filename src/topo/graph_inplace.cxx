@@ -172,110 +172,80 @@ OCCTL_API occtl_status_t OCCTL_CALL
                                      const int32_t         theFlag)
 {
   return OcctL::Core::Guard([&]() -> occtl_status_t {
-    BRepGraph_EdgeId anEdgeId;
-    if (const occtl_status_t aStatus =
-          OcctL::Topo::ToTypedId(theGraph, theEdge, BRepGraph_NodeId::Kind::Edge, anEdgeId))
-    {
-      return aStatus;
-    }
-
-    theGraph->graph.Editor().Edges().SetSameParameter(anEdgeId, theFlag != 0);
-    return OCCTL_OK;
+    (void)theGraph;
+    (void)theEdge;
+    (void)theFlag;
+    return OCCTL_UNSUPPORTED;
   });
 }
 
 //==================================================================================================
 
 OCCTL_API occtl_status_t OCCTL_CALL occtl_topo_set_edge_same_range(occtl_graph_t* const  theGraph,
-                                                                   const occtl_node_id_t theEdge,
-                                                                   const int32_t         theFlag)
+                                                                    const occtl_node_id_t theEdge,
+                                                                    const int32_t         theFlag)
 {
   return OcctL::Core::Guard([&]() -> occtl_status_t {
-    BRepGraph_EdgeId anEdgeId;
-    if (const occtl_status_t aStatus =
-          OcctL::Topo::ToTypedId(theGraph, theEdge, BRepGraph_NodeId::Kind::Edge, anEdgeId))
-    {
-      return aStatus;
-    }
-
-    theGraph->graph.Editor().Edges().SetSameRange(anEdgeId, theFlag != 0);
-    return OCCTL_OK;
+    (void)theGraph;
+    (void)theEdge;
+    (void)theFlag;
+    return OCCTL_UNSUPPORTED;
   });
 }
 
 //==================================================================================================
 
 OCCTL_API occtl_status_t OCCTL_CALL occtl_topo_set_edge_is_degenerate(occtl_graph_t* const theGraph,
-                                                                      const occtl_node_id_t theEdge,
-                                                                      const int32_t         theFlag)
+                                                                       const occtl_node_id_t theEdge,
+                                                                       const int32_t         theFlag)
 {
   return OcctL::Core::Guard([&]() -> occtl_status_t {
-    BRepGraph_EdgeId anEdgeId;
-    if (const occtl_status_t aStatus =
-          OcctL::Topo::ToTypedId(theGraph, theEdge, BRepGraph_NodeId::Kind::Edge, anEdgeId))
-    {
-      return aStatus;
-    }
-
-    theGraph->graph.Editor().Edges().SetDegenerate(anEdgeId, theFlag != 0);
-    return OCCTL_OK;
+    (void)theGraph;
+    (void)theEdge;
+    (void)theFlag;
+    return OCCTL_UNSUPPORTED;
   });
 }
 
 //==================================================================================================
 
 OCCTL_API occtl_status_t OCCTL_CALL occtl_topo_set_edge_is_closed(occtl_graph_t* const  theGraph,
-                                                                  const occtl_node_id_t theEdge,
-                                                                  const int32_t         theFlag)
+                                                                   const occtl_node_id_t theEdge,
+                                                                   const int32_t         theFlag)
 {
   return OcctL::Core::Guard([&]() -> occtl_status_t {
-    BRepGraph_EdgeId anEdgeId;
-    if (const occtl_status_t aStatus =
-          OcctL::Topo::ToTypedId(theGraph, theEdge, BRepGraph_NodeId::Kind::Edge, anEdgeId))
-    {
-      return aStatus;
-    }
-
-    theGraph->graph.Editor().Edges().SetIsClosed(anEdgeId, theFlag != 0);
-    return OCCTL_OK;
+    (void)theGraph;
+    (void)theEdge;
+    (void)theFlag;
+    return OCCTL_UNSUPPORTED;
   });
 }
 
 //==================================================================================================
 
 OCCTL_API occtl_status_t OCCTL_CALL occtl_topo_set_wire_is_closed(occtl_graph_t* const  theGraph,
-                                                                  const occtl_node_id_t theWire,
-                                                                  const int32_t         theFlag)
+                                                                   const occtl_node_id_t theWire,
+                                                                   const int32_t         theFlag)
 {
   return OcctL::Core::Guard([&]() -> occtl_status_t {
-    BRepGraph_WireId aWireId;
-    if (const occtl_status_t aStatus =
-          OcctL::Topo::ToTypedId(theGraph, theWire, BRepGraph_NodeId::Kind::Wire, aWireId))
-    {
-      return aStatus;
-    }
-
-    theGraph->graph.Editor().Wires().SetIsClosed(aWireId, theFlag != 0);
-    return OCCTL_OK;
+    (void)theGraph;
+    (void)theWire;
+    (void)theFlag;
+    return OCCTL_UNSUPPORTED;
   });
 }
 
 //==================================================================================================
 
 OCCTL_API occtl_status_t OCCTL_CALL occtl_topo_set_shell_is_closed(occtl_graph_t* const  theGraph,
-                                                                   const occtl_node_id_t theShell,
-                                                                   const int32_t         theFlag)
+                                                                    const occtl_node_id_t theShell,
+                                                                    const int32_t         theFlag)
 {
   return OcctL::Core::Guard([&]() -> occtl_status_t {
-    BRepGraph_ShellId aShellId;
-    if (const occtl_status_t aStatus =
-          OcctL::Topo::ToTypedId(theGraph, theShell, BRepGraph_NodeId::Kind::Shell, aShellId))
-    {
-      return aStatus;
-    }
-
-    theGraph->graph.Editor().Shells().SetIsClosed(aShellId, theFlag != 0);
-    return OCCTL_OK;
+    (void)theGraph;
+    (void)theShell;
+    (void)theFlag;
+    return OCCTL_UNSUPPORTED;
   });
 }
 
@@ -287,15 +257,10 @@ OCCTL_API occtl_status_t OCCTL_CALL
                                           const int32_t         theFlag)
 {
   return OcctL::Core::Guard([&]() -> occtl_status_t {
-    BRepGraph_FaceId aFaceId;
-    if (const occtl_status_t aStatus =
-          OcctL::Topo::ToTypedId(theGraph, theFace, BRepGraph_NodeId::Kind::Face, aFaceId))
-    {
-      return aStatus;
-    }
-
-    theGraph->graph.Editor().Faces().SetNaturalRestriction(aFaceId, theFlag != 0);
-    return OCCTL_OK;
+    (void)theGraph;
+    (void)theFace;
+    (void)theFlag;
+    return OCCTL_UNSUPPORTED;
   });
 }
 
@@ -330,22 +295,16 @@ OCCTL_API occtl_status_t OCCTL_CALL
 //==================================================================================================
 
 OCCTL_API occtl_status_t OCCTL_CALL occtl_topo_set_coedge_uv_box(occtl_graph_t* const  theGraph,
-                                                                 const occtl_node_id_t theCoedge,
-                                                                 const occtl_point2_t  theUvLo,
-                                                                 const occtl_point2_t  theUvHi)
+                                                                   const occtl_node_id_t theCoedge,
+                                                                   const occtl_point2_t  theUvLo,
+                                                                   const occtl_point2_t  theUvHi)
 {
   return OcctL::Core::Guard([&]() -> occtl_status_t {
-    BRepGraph_CoEdgeId aCoEdgeId;
-    if (const occtl_status_t aStatus =
-          OcctL::Topo::ToTypedId(theGraph, theCoedge, BRepGraph_NodeId::Kind::CoEdge, aCoEdgeId))
-    {
-      return aStatus;
-    }
-
-    theGraph->graph.Editor().CoEdges().SetUVBox(aCoEdgeId,
-                                                OcctL::Geom::ToGp(theUvLo),
-                                                OcctL::Geom::ToGp(theUvHi));
-    return OCCTL_OK;
+    (void)theGraph;
+    (void)theCoedge;
+    (void)theUvLo;
+    (void)theUvHi;
+    return OCCTL_UNSUPPORTED;
   });
 }
 

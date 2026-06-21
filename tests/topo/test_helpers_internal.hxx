@@ -38,7 +38,7 @@ inline TopoDS_Shape loadBox(occtl_graph_t* const theGraph)
 {
   TopoDS_Shape                  aBox = BRepPrimAPI_MakeBox(10.0, 20.0, 30.0).Shape();
   BRepGraph::ShapesView::Result aRes = theGraph->graph.Shapes().Add(aBox);
-  EXPECT_TRUE(aRes.Ok);
+  EXPECT_TRUE(aRes.IsOk());
   return aBox;
 }
 

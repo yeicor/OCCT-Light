@@ -25,10 +25,18 @@
 #include <BRepAlgoAPI_Section.hxx>
 #include <BRepBuilderAPI_MakeVertex.hxx>
 #include <BRepExtrema_DistShapeShape.hxx>
+// BRepGraphAlgo/BRepGraphCheck are not available in OCCT 8.0.0-p1.
+// Guard them out for the prototype-1 build. Remove this #define and
+// the #ifndef/#endif guards once OCCT ships these modules.
+#define OCCTL_NO_BREPGRAPH_ALGO
+
+#ifndef OCCTL_NO_BREPGRAPH_ALGO
 #include <BRepGraphAlgo_SolidClassifier.hxx>
+#endif
 #include <BRepGraph_ChildExplorer.hxx>
 #include <BRepGraph_RelatedIterator.hxx>
 #include <BRepGraph_ShapesView.hxx>
+#include <TopExp_Explorer.hxx>
 #include <BRepGraph_Tool.hxx>
 #include <BRepGraph_TopoView.hxx>
 #include <BRepTools.hxx>
@@ -218,9 +226,9 @@ void collectAdjacentEdges(BRepGraph&                                 theGraph,
   NCollection_FlatMap<uint64_t> aSeen;
 
   const auto addIncidentEdges = [&](const BRepGraph_VertexId theVertex) {
-    const NCollection_DynamicArray<BRepGraph_EdgeId>& anEdges =
+    const NCollection_LinearVector<BRepGraph_EdgeId>& anEdges =
       theGraph.Topo().Vertices().Edges(theVertex);
-    for (int anIndex = anEdges.Lower(); anIndex <= anEdges.Upper(); ++anIndex)
+    for (size_t anIndex = 0; anIndex < anEdges.Size(); ++anIndex)
     {
       const BRepGraph_EdgeId anEdge = anEdges.Value(anIndex);
       if (anEdge == theEdge || !isActiveNode(theGraph, BRepGraph_NodeId(anEdge)))
@@ -236,8 +244,8 @@ void collectAdjacentEdges(BRepGraph&                                 theGraph,
     }
   };
 
-  addIncidentEdges(BRepGraph_Tool::Edge::StartVertexId(theGraph, theEdge));
-  addIncidentEdges(BRepGraph_Tool::Edge::EndVertexId(theGraph, theEdge));
+  addIncidentEdges(BRepGraph_VertexId(BRepGraph_Tool::Edge::StartVertexId(theGraph, theEdge).Index));
+  addIncidentEdges(BRepGraph_VertexId(BRepGraph_Tool::Edge::EndVertexId(theGraph, theEdge).Index));
 }
 
 void collectAdjacentFaces(BRepGraph&                                 theGraph,
@@ -392,13 +400,15 @@ void collectTopologicalDistanceNeighbours(
   if (theNode.NodeKind == BRepGraph_NodeId::Kind::Vertex)
   {
     const BRepGraph_VertexId aVertex = BRepGraph_VertexId::FromNodeId(theNode);
-    const NCollection_DynamicArray<BRepGraph_EdgeId>& anEdges =
+    const NCollection_LinearVector<BRepGraph_EdgeId>& anEdges =
       theGraph.Topo().Vertices().Edges(aVertex);
-    for (int anI = anEdges.Lower(); anI <= anEdges.Upper(); ++anI)
+    for (size_t anI = 0; anI < anEdges.Size(); ++anI)
     {
       const BRepGraph_EdgeId   anEdge = anEdges.Value(anI);
-      const BRepGraph_VertexId aStart = BRepGraph_Tool::Edge::StartVertexId(theGraph, anEdge);
-      const BRepGraph_VertexId anEnd  = BRepGraph_Tool::Edge::EndVertexId(theGraph, anEdge);
+      const BRepGraph_VertexRefId aStartRef = BRepGraph_Tool::Edge::StartVertexId(theGraph, anEdge);
+      const BRepGraph_VertexRefId anEndRef  = BRepGraph_Tool::Edge::EndVertexId(theGraph, anEdge);
+      const BRepGraph_VertexId    aStart = BRepGraph_VertexId(aStartRef.Index);
+      const BRepGraph_VertexId    anEnd  = BRepGraph_VertexId(anEndRef.Index);
       if (BRepGraph_NodeId(aStart) != theNode)
       {
         addIfPeer(BRepGraph_NodeId(aStart), thePeerBits, theOutNeighbours);
@@ -547,7 +557,7 @@ occtl_status_t addIntersectionResult(occtl_graph_t* const theGraph,
   anOptions.TrackAddedNodes   = true;
 
   const BRepGraph::ShapesView::Result aResult = theGraph->graph.Shapes().Add(theShape, anOptions);
-  if (!aResult.Ok)
+  if (!aResult.IsOk())
   {
     OcctL::Core::ErrorState::Current().Set(
       OCCTL_TOPOLOGY_INVALID,
@@ -642,22 +652,14 @@ bool sameFaceByGraphRelation(const BRepGraph&       theGraph,
     return true;
   }
 
-  const BRepGraph_SurfaceRepId aRepA = theGraph.Topo().Faces().SurfaceRepId(theFaceA);
-  const BRepGraph_SurfaceRepId aRepB = theGraph.Topo().Faces().SurfaceRepId(theFaceB);
+  const BRepGraph_FaceSurfaceRepId aRepA = theGraph.Topo().Faces().Definition(theFaceA).SurfaceRepId;
+  const BRepGraph_FaceSurfaceRepId aRepB = theGraph.Topo().Faces().Definition(theFaceB).SurfaceRepId;
   if (aRepA.IsValid() && aRepB.IsValid() && aRepA == aRepB)
   {
     return true;
   }
 
-  const NCollection_DynamicArray<BRepGraph_FaceId> aSameDomain =
-    theGraph.Topo().Faces().SameDomain(theFaceA, nullptr);
-  for (int anI = aSameDomain.Lower(); anI <= aSameDomain.Upper(); ++anI)
-  {
-    if (aSameDomain.Value(anI) == theFaceB)
-    {
-      return true;
-    }
-  }
+  // 8.0.0-p1 has no SameDomain method; fall back to rep equality check above.
   return false;
 }
 
@@ -670,8 +672,8 @@ bool sameEdgeByGraphRelation(const BRepGraph&       theGraph,
     return true;
   }
 
-  const BRepGraph_Curve3DRepId aRepA = theGraph.Topo().Edges().Curve3DRepId(theEdgeA);
-  const BRepGraph_Curve3DRepId aRepB = theGraph.Topo().Edges().Curve3DRepId(theEdgeB);
+  const BRepGraph_EdgeCurve3DRepId aRepA = theGraph.Topo().Edges().Definition(theEdgeA).Curve3DRepId;
+  const BRepGraph_EdgeCurve3DRepId aRepB = theGraph.Topo().Edges().Definition(theEdgeB).Curve3DRepId;
   return aRepA.IsValid() && aRepB.IsValid() && aRepA == aRepB;
 }
 
@@ -797,10 +799,17 @@ occtl_status_t classifySolidPoint(const occtl_graph_t* const      theGraph,
     return aStatus;
   }
 
+#ifndef OCCTL_NO_BREPGRAPH_ALGO
   BRepGraphAlgo_SolidClassifier aClassifier(theGraph->graph, aSolidId);
   aClassifier.Perform(OcctL::Geom::ToGp(thePoint), theTolerance);
   *theOutClass = toPointClass(aClassifier.State());
   return OCCTL_OK;
+#else
+  (void)aSolidId;
+  OcctL::Core::ErrorState::Current().Set(OCCTL_UNSUPPORTED,
+                                         "BRepGraphAlgo_SolidClassifier not available in this build");
+  return OCCTL_UNSUPPORTED;
+#endif
 }
 
 } // anonymous namespace
