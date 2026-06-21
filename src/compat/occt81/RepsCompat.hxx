@@ -131,6 +131,7 @@ inline BRepGraph_FaceSurfaceRepId CreateSurfaceRep(BRepGraph& theGraph,
   BRepGraph_FaceId f =
       MakeFace(theGraph, gp_Pnt(0, 0, 0), gp_Pnt(1, 0, 0), gp_Pnt(1, 1, 0), gp_Pnt(0, 1, 0),
                theSurface);
+  theGraph.Editor().Faces().SetSurface(f, theSurface);
   return theGraph.Topo().Faces().Definition(f).SurfaceRepId;
 }
 

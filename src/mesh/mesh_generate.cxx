@@ -34,10 +34,20 @@
 #include <occtl/occtl_mesh.h>
 
 /* BRepGraphMesh_IncrementalMesh removed in OCCT 8.0.0-p1;
- * reimplement with BRepMesh_IncrementalMesh + BRepGraph::ShapesView::Shape(). */
+ * reimplemented with BRepMesh_IncrementalMesh + BRepGraph::ShapesView::Shape(). */
 #include <BRepGraph_NodeId.hxx>
+#include <BRepGraph_MeshView.hxx>
+#include <BRepGraph_ShapesView.hxx>
+#include <BRep_Builder.hxx>
+#include <BRepMesh_IncrementalMesh.hxx>
+#include <BRep_Tool.hxx>
 #include <NCollection_DynamicArray.hxx>
+#include <Poly_Triangulation.hxx>
 #include <Precision.hxx>
+#include <TopoDS.hxx>
+#include <TopoDS_Compound.hxx>
+#include <TopoDS_Face.hxx>
+#include <TopoDS_Shape.hxx>
 
 #include <cmath>
 #include <mutex>
@@ -160,14 +170,10 @@ extern "C"
 {
 
 OCCTL_API occtl_status_t OCCTL_CALL occtl_mesh_generate(occtl_graph_t* const              graph,
-                                                        const occtl_node_id_t* const      nodes,
-                                                        const size_t                      n_nodes,
-                                                        const occtl_mesh_options_t* const options)
+                                                         const occtl_node_id_t* const      nodes,
+                                                         const size_t                      n_nodes,
+                                                         const occtl_mesh_options_t* const options)
 {
-// TODO: Reimplement with BRepMesh_IncrementalMesh + BRepGraph::ShapesView::Shape()
-// in OCCT 8.0.0-p1. The classic BRepMesh_IncrementalMesh operates on TopoDS_Shape,
-// so the graph nodes must be converted via ShapesView before meshing.
-#if 0
   return OcctL::Core::Guard([&]() -> occtl_status_t {
     if (graph == nullptr || options == nullptr)
     {
@@ -189,16 +195,35 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_mesh_generate(occtl_graph_t* const    
       return aValidationStatus;
     }
 
-    const IMeshTools_Parameters aParams  = OcctL::Mesh::ToParameters(*options);
-    const bool                  aUseBbox = options->use_bbox != 0;
-    const Bnd_Box               aBox = aUseBbox ? OcctL::Mesh::ToBndBox(options->bbox) : Bnd_Box();
-    const double                aDevCoef    = options->deviation_coefficient;
-    const double                aDevAngle   = options->deviation_angle;
-    const bool                  aInParallel = options->in_parallel != 0;
+    const IMeshTools_Parameters aParams = OcctL::Mesh::ToParameters(*options);
 
     BRepGraph_NodeId                           aSingleRoot;
-    NCollection_DynamicArray<BRepGraph_NodeId> aNodeIds;
-    if (n_nodes == 1)
+    NCollection_LinearVector<BRepGraph_NodeId> aTargets;
+    if (n_nodes == 0)
+    {
+      // Collect top-level root shapes.
+      // 1. Root products (added via Shapes().Add()).
+      const auto& aRoots = graph->graph.RootProductIds();
+      for (size_t i = 0; i < aRoots.Size(); ++i)
+      {
+        aTargets.Append(aRoots[i]);
+      }
+      // 2. If there are no products (graph built directly via Editor()),
+      //    fall back to top-level solids and compounds from topology.
+      if (aRoots.Size() == 0)
+      {
+        const auto& topo = graph->graph.Topo();
+        for (auto sid = topo.Solids().StartId(); sid < topo.Solids().EndId(); ++sid)
+        {
+          aTargets.Append(sid);
+        }
+        for (auto cid = topo.Compounds().StartId(); cid < topo.Compounds().EndId(); ++cid)
+        {
+          aTargets.Append(cid);
+        }
+      }
+    }
+    else if (n_nodes == 1)
     {
       const BRepGraph_NodeId aNodeId = OcctL::Topo::UnpackNodeId(nodes[0]);
       if (!aNodeId.IsValid())
@@ -207,9 +232,9 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_mesh_generate(occtl_graph_t* const    
                                                "mesh root node is invalid or removed");
         return OCCTL_NOT_FOUND;
       }
-      aSingleRoot = aNodeId;
+      aTargets.Append(aNodeId);
     }
-    else if (n_nodes > 1)
+    else
     {
       for (size_t i = 0; i < n_nodes; ++i)
       {
@@ -221,56 +246,65 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_mesh_generate(occtl_graph_t* const    
             "mesh node list contains an invalid or removed node");
           return OCCTL_NOT_FOUND;
         }
-        aNodeIds.Append(aId);
+        aTargets.Append(aId);
       }
     }
 
-    // Invalidate up-front so a partial-failure Perform does not leave a
-    // half-cached state visible to the next view fetch. Stamps would
-    // catch this anyway on a per-slot basis, but eager clearing avoids
-    // walking the cache on every subsequent read until the stamp catches
-    // up.
+    if (aTargets.Size() == 0)
+    {
+      return OCCTL_OK;
+    }
+
+    // Build a compound from the target shapes.
+    TopoDS_Compound aCompound;
+    BRep_Builder    aBuilder;
+    aBuilder.MakeCompound(aCompound);
+    for (size_t i = 0; i < aTargets.Size(); ++i)
+    {
+      const TopoDS_Shape aShape = graph->graph.Shapes().Shape(aTargets[i]);
+      if (!aShape.IsNull())
+      {
+        aBuilder.Add(aCompound, aShape);
+      }
+    }
+
+    // Invalidate cache before meshing.
     invalidateCache(graph);
 
-    bool aOk = false;
-    if (n_nodes == 0)
+    // Mesh the compound shape.
+    BRepMesh_IncrementalMesh aMesher(aCompound, aParams);
+    if (!aMesher.IsDone())
     {
-      aOk = aUseBbox ? BRepGraphMesh_IncrementalMesh::Perform(graph->graph,
-                                                               aBox,
-                                                               aDevCoef,
-                                                               aDevAngle,
-                                                               aInParallel)
-                     : BRepGraphMesh_IncrementalMesh::Perform(graph->graph, aParams);
-    }
-    else if (n_nodes == 1)
-    {
-      aOk = aUseBbox ? BRepGraphMesh_IncrementalMesh::Perform(graph->graph,
-                                                               aSingleRoot,
-                                                               aBox,
-                                                               aDevCoef,
-                                                               aDevAngle,
-                                                               aInParallel)
-                     : BRepGraphMesh_IncrementalMesh::Perform(graph->graph, aSingleRoot, aParams);
-    }
-    else
-    {
-      aOk = aUseBbox ? BRepGraphMesh_IncrementalMesh::Perform(graph->graph,
-                                                               aNodeIds,
-                                                               aBox,
-                                                               aDevCoef,
-                                                               aDevAngle,
-                                                               aInParallel)
-                     : BRepGraphMesh_IncrementalMesh::Perform(graph->graph, aNodeIds, aParams);
+      OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_DONE, "BRepMesh_IncrementalMesh failed");
+      return OCCTL_NOT_DONE;
     }
 
-    return aOk ? OCCTL_OK : OCCTL_NOT_DONE;
+    // Push triangulation back onto each graph face that was meshed.
+    // BRepMesh_IncrementalMesh stores triangulation on the TShape of each
+    // face in the meshed shape.  Since ShapesView reconstructs faces from
+    // the same TShapes, the triangulation is visible through
+    // BRep_Tool::Triangulation(Shape(faceId), ...).
+    const auto& topo = graph->graph.Topo();
+    for (auto fid = topo.Faces().StartId(); fid < topo.Faces().EndId(); ++fid)
+    {
+      const TopoDS_Shape aFaceShape = graph->graph.Shapes().Shape(fid);
+      if (aFaceShape.IsNull())
+      {
+        continue;
+      }
+      TopLoc_Location                          aLoc;
+      const occ::handle<Poly_Triangulation>& aTri =
+        BRep_Tool::Triangulation(TopoDS::Face(aFaceShape), aLoc);
+      if (aTri.IsNull())
+      {
+        continue;
+      }
+      graph->graph.Editor().Faces().SetPersistentTriangulation(fid, aTri);
+      graph->graph.Mesh().Editor().Faces().SetCachedTriangulation(fid, aTri);
+    }
+
+    return OCCTL_OK;
   });
-#else
-  OcctL::Core::ErrorState::Current().Set(
-    OCCTL_UNSUPPORTED,
-    "mesh_generate is not yet reimplemented for OCCT 8.0.0-p1");
-  return OCCTL_UNSUPPORTED;
-#endif
 }
 
 } // extern "C"

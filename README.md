@@ -1,16 +1,11 @@
 # OCCT-Light
 
-> **⚠️ WARNING: This is a community fork ported to OCCT 8.0.0-p1.**  
-> The upstream [OCCT-Light](https://github.com/Open-Cascade-SAS/OCCT-Light) targets a **post-refactor** OCCT with a significantly different `BRepGraph` and `BRepGraph_Tool` API. This fork backports those calls to the shipped **OCCT 8.0.0-p1** release:
-> - `BRepGraph_Tool::Edge::Xxx`, `Face::Xxx`, `Vertex::Xxx` etc. (nested classes, not flat methods)
-> - `BRepGraph::EditorView` API differences (`SetCurve`/`SetPCurve` take handles, not RepIds)
-> - `ShapesView::Result::Ok` → `ShapesView::Result::IsOk()`
-> - `BRepGraph_UID::Kind()` → `BRepGraph_UID::Kind` (field, not method)
-> - Missing EditorView setters, `BRepGraph_CoEdgeRefIterator`, `BRepGraphMesh_IncrementalMesh`, `GeomAPI_PlanarConvexHull` stubbed
-> - `OnCompact(const NCollection_DataMap<...>&)` → `CopyTo(const BRepGraph_CopyRemap&)` for layer classes
-> - Compat headers under `src/compat/occt81/` (`RepsCompat.hxx`, `RepLookup.hxx`, `BRepGraph_RepUID.hxx`)
+> **⚠️ WORK IN PROGRESS — See the [`prototype-1`](https://github.com/yeicor/OCCT-Light/tree/prototype-1) branch for the actual port.**  
+> This `main` branch mirrors the upstream repo and is not yet updated. All porting work lives on the `prototype-1` branch.
 >
-> For full details see the [AGENTS.md](./AGENTS.md) session log. **Upstream PRs should target the original repo, not this fork.**
+> This is a community fork ported to **OCCT 8.0.0-p1**. The upstream targets a post-refactor OCCT with a significantly different BRepGraph API. This fork backports those calls to the shipped 8.0.0-p1 release via compat headers and targeted patches.
+>
+> Upstream PRs should target [the original repo](https://github.com/Open-Cascade-SAS/OCCT-Light), not this fork.
 
 > A modular C-ABI wrapper around [Open CASCADE Technology](https://dev.opencascade.org/), designed as the canonical bridge for Python, C#, JS/TS, WASM, Rust, Go, Java, and any language with a C foreign-function interface.
 

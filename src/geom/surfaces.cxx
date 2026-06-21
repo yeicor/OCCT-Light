@@ -186,34 +186,33 @@ occtl_status_t SurfaceFlatKnotsCommon(const occtl_graph_t* theGraph,
 //! Helper: unpacks a surface rep id and returns the Geom_Surface handle.
 //! On failure sets the error state and returns nullptr; the caller must
 //! propagate the status stored via @p theOutStatus.
-inline const occ::handle<Geom_Surface>* UnpackSurface(const occtl_graph_t* theGraph,
-                                                      occtl_rep_id_t       theSurfaceId,
-                                                      occtl_status_t&      theOutStatus)
+inline occ::handle<Geom_Surface> UnpackSurface(const occtl_graph_t* theGraph,
+                                                occtl_rep_id_t       theSurfaceId,
+                                                occtl_status_t&      theOutStatus)
 {
   const BRepGraph_RepId aRawId = OcctL::Topo::UnpackRepId(theSurfaceId);
   if (!aRawId.IsValid())
   {
     OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_FOUND, "surface rep not found");
     theOutStatus = OCCTL_NOT_FOUND;
-    return nullptr;
+    return {};
   }
   if (aRawId.RepKind != BRepGraph_RepId::Kind::FaceSurface)
   {
     OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND, "rep is not a surface");
     theOutStatus = OCCTL_WRONG_KIND;
-    return nullptr;
+    return {};
   }
-  BRepGraph_FaceSurfaceRepId           aSurfRepId(static_cast<uint32_t>(aRawId.Index));
-  const occ::handle<Geom_Surface>& aSurface =
-    OcctL::Geom::SurfaceFromRep(theGraph->graph, aSurfRepId);
+  BRepGraph_FaceSurfaceRepId aSurfRepId(static_cast<uint32_t>(aRawId.Index));
+  occ::handle<Geom_Surface>  aSurface = OcctL::Geom::SurfaceFromRep(theGraph->graph, aSurfRepId);
   if (aSurface.IsNull())
   {
     OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_FOUND, "surface rep not found");
     theOutStatus = OCCTL_NOT_FOUND;
-    return nullptr;
+    return {};
   }
   theOutStatus = OCCTL_OK;
-  return &aSurface;
+  return aSurface;
 }
 
 } // namespace
@@ -813,12 +812,12 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_surface_kind(const occtl_graph_t*  the
       return OCCTL_INVALID_ARGUMENT;
     }
     occtl_status_t                   aStatus;
-    const occ::handle<Geom_Surface>* aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
-    if (aSurface == nullptr)
+    occ::handle<Geom_Surface> aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
+    if (aSurface.IsNull())
     {
       return aStatus;
     }
-    *theOutKind = OcctL::Geom::DetermineSurfaceKind(*aSurface);
+    *theOutKind = OcctL::Geom::DetermineSurfaceKind(aSurface);
     return OCCTL_OK;
   });
 }
@@ -838,12 +837,12 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_surface_is_u_periodic(const occtl_grap
       return OCCTL_INVALID_ARGUMENT;
     }
     occtl_status_t                   aStatus;
-    const occ::handle<Geom_Surface>* aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
-    if (aSurface == nullptr)
+    occ::handle<Geom_Surface> aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
+    if (aSurface.IsNull())
     {
       return aStatus;
     }
-    *theOutIsPeriodic = (*aSurface)->IsUPeriodic() ? 1 : 0;
+    *theOutIsPeriodic = aSurface->IsUPeriodic() ? 1 : 0;
     return OCCTL_OK;
   });
 }
@@ -863,12 +862,12 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_surface_is_v_periodic(const occtl_grap
       return OCCTL_INVALID_ARGUMENT;
     }
     occtl_status_t                   aStatus;
-    const occ::handle<Geom_Surface>* aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
-    if (aSurface == nullptr)
+    occ::handle<Geom_Surface> aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
+    if (aSurface.IsNull())
     {
       return aStatus;
     }
-    *theOutIsPeriodic = (*aSurface)->IsVPeriodic() ? 1 : 0;
+    *theOutIsPeriodic = aSurface->IsVPeriodic() ? 1 : 0;
     return OCCTL_OK;
   });
 }
@@ -887,12 +886,12 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_surface_is_closed(const occtl_graph_t*
       return OCCTL_INVALID_ARGUMENT;
     }
     occtl_status_t                   aStatus;
-    const occ::handle<Geom_Surface>* aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
-    if (aSurface == nullptr)
+    occ::handle<Geom_Surface> aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
+    if (aSurface.IsNull())
     {
       return aStatus;
     }
-    *theOutIsClosed = ((*aSurface)->IsUClosed() && (*aSurface)->IsVClosed()) ? 1 : 0;
+    *theOutIsClosed = (aSurface->IsUClosed() && aSurface->IsVClosed()) ? 1 : 0;
     return OCCTL_OK;
   });
 }
@@ -912,12 +911,12 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_surface_is_periodic(const occtl_graph_
       return OCCTL_INVALID_ARGUMENT;
     }
     occtl_status_t                   aStatus;
-    const occ::handle<Geom_Surface>* aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
-    if (aSurface == nullptr)
+    occ::handle<Geom_Surface> aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
+    if (aSurface.IsNull())
     {
       return aStatus;
     }
-    *theOutIsPeriodic = ((*aSurface)->IsUPeriodic() || (*aSurface)->IsVPeriodic()) ? 1 : 0;
+    *theOutIsPeriodic = (aSurface->IsUPeriodic() || aSurface->IsVPeriodic()) ? 1 : 0;
     return OCCTL_OK;
   });
 }
@@ -937,13 +936,13 @@ OCCTL_API occtl_status_t OCCTL_CALL
       return OCCTL_INVALID_ARGUMENT;
     }
     occtl_status_t                   aStatus;
-    const occ::handle<Geom_Surface>* aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
-    if (aSurface == nullptr)
+    occ::handle<Geom_Surface> aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
+    if (aSurface.IsNull())
     {
       return aStatus;
     }
     *theOutContinuity =
-      static_cast<occtl_geom_continuity_t>(static_cast<int>((*aSurface)->Continuity()));
+      static_cast<occtl_geom_continuity_t>(static_cast<int>(aSurface->Continuity()));
     return OCCTL_OK;
   });
 }
@@ -964,13 +963,13 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_surface_parameter_range(const occtl_gr
       return OCCTL_INVALID_ARGUMENT;
     }
     occtl_status_t                   aStatus;
-    const occ::handle<Geom_Surface>* aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
-    if (aSurface == nullptr)
+    occ::handle<Geom_Surface> aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
+    if (aSurface.IsNull())
     {
       return aStatus;
     }
     double aU1 = 0.0, aU2 = 0.0, aV1 = 0.0, aV2 = 0.0;
-    (*aSurface)->Bounds(aU1, aU2, aV1, aV2);
+    aSurface->Bounds(aU1, aU2, aV1, aV2);
     if (theOutUMin != nullptr)
     {
       *theOutUMin = aU1;
@@ -1005,12 +1004,12 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_surface_as_plane(const occtl_graph_t* 
       return OCCTL_INVALID_ARGUMENT;
     }
     occtl_status_t                   aStatus;
-    const occ::handle<Geom_Surface>* aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
-    if (aSurface == nullptr)
+    occ::handle<Geom_Surface> aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
+    if (aSurface.IsNull())
     {
       return aStatus;
     }
-    const occ::handle<Geom_Plane> aPlane = occ::down_cast<Geom_Plane>(*aSurface);
+    const occ::handle<Geom_Plane> aPlane = occ::down_cast<Geom_Plane>(aSurface);
     if (aPlane.IsNull())
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND, "surface is not a plane");
@@ -1036,13 +1035,13 @@ OCCTL_API occtl_status_t OCCTL_CALL
       return OCCTL_INVALID_ARGUMENT;
     }
     occtl_status_t                   aStatus;
-    const occ::handle<Geom_Surface>* aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
-    if (aSurface == nullptr)
+    occ::handle<Geom_Surface> aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
+    if (aSurface.IsNull())
     {
       return aStatus;
     }
     const occ::handle<Geom_CylindricalSurface> aCyl =
-      occ::down_cast<Geom_CylindricalSurface>(*aSurface);
+      occ::down_cast<Geom_CylindricalSurface>(aSurface);
     if (aCyl.IsNull())
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND,
@@ -1068,12 +1067,12 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_surface_as_cone(const occtl_graph_t* t
       return OCCTL_INVALID_ARGUMENT;
     }
     occtl_status_t                   aStatus;
-    const occ::handle<Geom_Surface>* aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
-    if (aSurface == nullptr)
+    occ::handle<Geom_Surface> aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
+    if (aSurface.IsNull())
     {
       return aStatus;
     }
-    const occ::handle<Geom_ConicalSurface> aCone = occ::down_cast<Geom_ConicalSurface>(*aSurface);
+    const occ::handle<Geom_ConicalSurface> aCone = occ::down_cast<Geom_ConicalSurface>(aSurface);
     if (aCone.IsNull())
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND, "surface is not a conical surface");
@@ -1099,13 +1098,13 @@ OCCTL_API occtl_status_t OCCTL_CALL
       return OCCTL_INVALID_ARGUMENT;
     }
     occtl_status_t                   aStatus;
-    const occ::handle<Geom_Surface>* aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
-    if (aSurface == nullptr)
+    occ::handle<Geom_Surface> aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
+    if (aSurface.IsNull())
     {
       return aStatus;
     }
     const occ::handle<Geom_SphericalSurface> aSphere =
-      occ::down_cast<Geom_SphericalSurface>(*aSurface);
+      occ::down_cast<Geom_SphericalSurface>(aSurface);
     if (aSphere.IsNull())
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND,
@@ -1131,13 +1130,13 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_surface_as_torus(const occtl_graph_t* 
       return OCCTL_INVALID_ARGUMENT;
     }
     occtl_status_t                   aStatus;
-    const occ::handle<Geom_Surface>* aSurface = UnpackSurface(graph, surface_id, aStatus);
-    if (aSurface == nullptr)
+    occ::handle<Geom_Surface> aSurface = UnpackSurface(graph, surface_id, aStatus);
+    if (aSurface.IsNull())
     {
       return aStatus;
     }
     const occ::handle<Geom_ToroidalSurface> aTorus =
-      occ::down_cast<Geom_ToroidalSurface>(*aSurface);
+      occ::down_cast<Geom_ToroidalSurface>(aSurface);
     if (aTorus.IsNull())
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND, "surface is not a toroidal surface");
@@ -1161,13 +1160,13 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_surface_as_revolution(const occtl_grap
       return OCCTL_INVALID_ARGUMENT;
     }
     occtl_status_t                   aStatus;
-    const occ::handle<Geom_Surface>* aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
-    if (aSurface == nullptr)
+    occ::handle<Geom_Surface> aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
+    if (aSurface.IsNull())
     {
       return aStatus;
     }
     const occ::handle<Geom_SurfaceOfRevolution> aRev =
-      occ::down_cast<Geom_SurfaceOfRevolution>(*aSurface);
+      occ::down_cast<Geom_SurfaceOfRevolution>(aSurface);
     if (aRev.IsNull())
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND,
@@ -1197,13 +1196,13 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_surface_as_extrusion(const occtl_graph
       return OCCTL_INVALID_ARGUMENT;
     }
     occtl_status_t                   aStatus;
-    const occ::handle<Geom_Surface>* aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
-    if (aSurface == nullptr)
+    occ::handle<Geom_Surface> aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
+    if (aSurface.IsNull())
     {
       return aStatus;
     }
     const occ::handle<Geom_SurfaceOfLinearExtrusion> anExt =
-      occ::down_cast<Geom_SurfaceOfLinearExtrusion>(*aSurface);
+      occ::down_cast<Geom_SurfaceOfLinearExtrusion>(aSurface);
     if (anExt.IsNull())
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND, "surface is not a linear extrusion");
@@ -1235,13 +1234,13 @@ OCCTL_API occtl_status_t OCCTL_CALL
       return OCCTL_INVALID_ARGUMENT;
     }
     occtl_status_t                   aStatus;
-    const occ::handle<Geom_Surface>* aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
-    if (aSurface == nullptr)
+    occ::handle<Geom_Surface> aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
+    if (aSurface.IsNull())
     {
       return aStatus;
     }
     const occ::handle<Geom_RectangularTrimmedSurface> aTrim =
-      occ::down_cast<Geom_RectangularTrimmedSurface>(*aSurface);
+      occ::down_cast<Geom_RectangularTrimmedSurface>(aSurface);
     if (aTrim.IsNull())
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND,
@@ -1283,12 +1282,12 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_surface_as_offset(const occtl_graph_t*
       return OCCTL_INVALID_ARGUMENT;
     }
     occtl_status_t                   aStatus;
-    const occ::handle<Geom_Surface>* aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
-    if (aSurface == nullptr)
+    occ::handle<Geom_Surface> aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
+    if (aSurface.IsNull())
     {
       return aStatus;
     }
-    const occ::handle<Geom_OffsetSurface> anOffset = occ::down_cast<Geom_OffsetSurface>(*aSurface);
+    const occ::handle<Geom_OffsetSurface> anOffset = occ::down_cast<Geom_OffsetSurface>(aSurface);
     if (anOffset.IsNull())
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND, "surface is not an offset surface");
@@ -1316,12 +1315,12 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_surface_bspline_u_degree(const occtl_g
       return OCCTL_INVALID_ARGUMENT;
     }
     occtl_status_t                   aStatus;
-    const occ::handle<Geom_Surface>* aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
-    if (aSurface == nullptr)
+    occ::handle<Geom_Surface> aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
+    if (aSurface.IsNull())
     {
       return aStatus;
     }
-    const occ::handle<Geom_BSplineSurface> aBs = occ::down_cast<Geom_BSplineSurface>(*aSurface);
+    const occ::handle<Geom_BSplineSurface> aBs = occ::down_cast<Geom_BSplineSurface>(aSurface);
     if (aBs.IsNull())
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND, "surface is not a B-spline");
@@ -1346,12 +1345,12 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_surface_bspline_v_degree(const occtl_g
       return OCCTL_INVALID_ARGUMENT;
     }
     occtl_status_t                   aStatus;
-    const occ::handle<Geom_Surface>* aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
-    if (aSurface == nullptr)
+    occ::handle<Geom_Surface> aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
+    if (aSurface.IsNull())
     {
       return aStatus;
     }
-    const occ::handle<Geom_BSplineSurface> aBs = occ::down_cast<Geom_BSplineSurface>(*aSurface);
+    const occ::handle<Geom_BSplineSurface> aBs = occ::down_cast<Geom_BSplineSurface>(aSurface);
     if (aBs.IsNull())
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND, "surface is not a B-spline");
@@ -1377,12 +1376,12 @@ OCCTL_API occtl_status_t OCCTL_CALL
       return OCCTL_INVALID_ARGUMENT;
     }
     occtl_status_t                   aStatus;
-    const occ::handle<Geom_Surface>* aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
-    if (aSurface == nullptr)
+    occ::handle<Geom_Surface> aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
+    if (aSurface.IsNull())
     {
       return aStatus;
     }
-    const occ::handle<Geom_BSplineSurface> aBs = occ::down_cast<Geom_BSplineSurface>(*aSurface);
+    const occ::handle<Geom_BSplineSurface> aBs = occ::down_cast<Geom_BSplineSurface>(aSurface);
     if (aBs.IsNull())
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND, "surface is not a B-spline");
@@ -1408,12 +1407,12 @@ OCCTL_API occtl_status_t OCCTL_CALL
       return OCCTL_INVALID_ARGUMENT;
     }
     occtl_status_t                   aStatus;
-    const occ::handle<Geom_Surface>* aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
-    if (aSurface == nullptr)
+    occ::handle<Geom_Surface> aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
+    if (aSurface.IsNull())
     {
       return aStatus;
     }
-    const occ::handle<Geom_BSplineSurface> aBs = occ::down_cast<Geom_BSplineSurface>(*aSurface);
+    const occ::handle<Geom_BSplineSurface> aBs = occ::down_cast<Geom_BSplineSurface>(aSurface);
     if (aBs.IsNull())
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND, "surface is not a B-spline");
@@ -1439,12 +1438,12 @@ OCCTL_API occtl_status_t OCCTL_CALL
       return OCCTL_INVALID_ARGUMENT;
     }
     occtl_status_t                   aStatus;
-    const occ::handle<Geom_Surface>* aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
-    if (aSurface == nullptr)
+    occ::handle<Geom_Surface> aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
+    if (aSurface.IsNull())
     {
       return aStatus;
     }
-    const occ::handle<Geom_BSplineSurface> aBs = occ::down_cast<Geom_BSplineSurface>(*aSurface);
+    const occ::handle<Geom_BSplineSurface> aBs = occ::down_cast<Geom_BSplineSurface>(aSurface);
     if (aBs.IsNull())
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND, "surface is not a B-spline");
@@ -1470,12 +1469,12 @@ OCCTL_API occtl_status_t OCCTL_CALL
       return OCCTL_INVALID_ARGUMENT;
     }
     occtl_status_t                   aStatus;
-    const occ::handle<Geom_Surface>* aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
-    if (aSurface == nullptr)
+    occ::handle<Geom_Surface> aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
+    if (aSurface.IsNull())
     {
       return aStatus;
     }
-    const occ::handle<Geom_BSplineSurface> aBs = occ::down_cast<Geom_BSplineSurface>(*aSurface);
+    const occ::handle<Geom_BSplineSurface> aBs = occ::down_cast<Geom_BSplineSurface>(aSurface);
     if (aBs.IsNull())
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND, "surface is not a B-spline");
@@ -1501,12 +1500,12 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_surface_bspline_is_rational(const occt
       return OCCTL_INVALID_ARGUMENT;
     }
     occtl_status_t                   aStatus;
-    const occ::handle<Geom_Surface>* aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
-    if (aSurface == nullptr)
+    occ::handle<Geom_Surface> aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
+    if (aSurface.IsNull())
     {
       return aStatus;
     }
-    const occ::handle<Geom_BSplineSurface> aBs = occ::down_cast<Geom_BSplineSurface>(*aSurface);
+    const occ::handle<Geom_BSplineSurface> aBs = occ::down_cast<Geom_BSplineSurface>(aSurface);
     if (aBs.IsNull())
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND, "surface is not a B-spline");
@@ -1531,12 +1530,12 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_surface_bezier_u_degree(const occtl_gr
       return OCCTL_INVALID_ARGUMENT;
     }
     occtl_status_t                   aStatus;
-    const occ::handle<Geom_Surface>* aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
-    if (aSurface == nullptr)
+    occ::handle<Geom_Surface> aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
+    if (aSurface.IsNull())
     {
       return aStatus;
     }
-    const occ::handle<Geom_BezierSurface> aBz = occ::down_cast<Geom_BezierSurface>(*aSurface);
+    const occ::handle<Geom_BezierSurface> aBz = occ::down_cast<Geom_BezierSurface>(aSurface);
     if (aBz.IsNull())
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND, "surface is not a Bezier");
@@ -1561,12 +1560,12 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_surface_bezier_v_degree(const occtl_gr
       return OCCTL_INVALID_ARGUMENT;
     }
     occtl_status_t                   aStatus;
-    const occ::handle<Geom_Surface>* aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
-    if (aSurface == nullptr)
+    occ::handle<Geom_Surface> aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
+    if (aSurface.IsNull())
     {
       return aStatus;
     }
-    const occ::handle<Geom_BezierSurface> aBz = occ::down_cast<Geom_BezierSurface>(*aSurface);
+    const occ::handle<Geom_BezierSurface> aBz = occ::down_cast<Geom_BezierSurface>(aSurface);
     if (aBz.IsNull())
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND, "surface is not a Bezier");
@@ -1591,12 +1590,12 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_surface_bezier_u_pole_count(const occt
       return OCCTL_INVALID_ARGUMENT;
     }
     occtl_status_t                   aStatus;
-    const occ::handle<Geom_Surface>* aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
-    if (aSurface == nullptr)
+    occ::handle<Geom_Surface> aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
+    if (aSurface.IsNull())
     {
       return aStatus;
     }
-    const occ::handle<Geom_BezierSurface> aBz = occ::down_cast<Geom_BezierSurface>(*aSurface);
+    const occ::handle<Geom_BezierSurface> aBz = occ::down_cast<Geom_BezierSurface>(aSurface);
     if (aBz.IsNull())
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND, "surface is not a Bezier");
@@ -1621,12 +1620,12 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_surface_bezier_v_pole_count(const occt
       return OCCTL_INVALID_ARGUMENT;
     }
     occtl_status_t                   aStatus;
-    const occ::handle<Geom_Surface>* aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
-    if (aSurface == nullptr)
+    occ::handle<Geom_Surface> aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
+    if (aSurface.IsNull())
     {
       return aStatus;
     }
-    const occ::handle<Geom_BezierSurface> aBz = occ::down_cast<Geom_BezierSurface>(*aSurface);
+    const occ::handle<Geom_BezierSurface> aBz = occ::down_cast<Geom_BezierSurface>(aSurface);
     if (aBz.IsNull())
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND, "surface is not a Bezier");
@@ -1652,12 +1651,12 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_surface_bezier_is_rational(const occtl
       return OCCTL_INVALID_ARGUMENT;
     }
     occtl_status_t                   aStatus;
-    const occ::handle<Geom_Surface>* aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
-    if (aSurface == nullptr)
+    occ::handle<Geom_Surface> aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
+    if (aSurface.IsNull())
     {
       return aStatus;
     }
-    const occ::handle<Geom_BezierSurface> aBz = occ::down_cast<Geom_BezierSurface>(*aSurface);
+    const occ::handle<Geom_BezierSurface> aBz = occ::down_cast<Geom_BezierSurface>(aSurface);
     if (aBz.IsNull())
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND, "surface is not a Bezier");
@@ -1684,12 +1683,12 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_surface_bspline_poles(const occtl_grap
       return OCCTL_INVALID_ARGUMENT;
     }
     occtl_status_t                   aStatus;
-    const occ::handle<Geom_Surface>* aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
-    if (aSurface == nullptr)
+    occ::handle<Geom_Surface> aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
+    if (aSurface.IsNull())
     {
       return aStatus;
     }
-    const occ::handle<Geom_BSplineSurface> aBs = occ::down_cast<Geom_BSplineSurface>(*aSurface);
+    const occ::handle<Geom_BSplineSurface> aBs = occ::down_cast<Geom_BSplineSurface>(aSurface);
     if (aBs.IsNull())
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND, "surface is not a B-spline");
@@ -1737,12 +1736,12 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_surface_bspline_u_knots(const occtl_gr
       return OCCTL_INVALID_ARGUMENT;
     }
     occtl_status_t                   aStatus;
-    const occ::handle<Geom_Surface>* aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
-    if (aSurface == nullptr)
+    occ::handle<Geom_Surface> aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
+    if (aSurface.IsNull())
     {
       return aStatus;
     }
-    const occ::handle<Geom_BSplineSurface> aBs = occ::down_cast<Geom_BSplineSurface>(*aSurface);
+    const occ::handle<Geom_BSplineSurface> aBs = occ::down_cast<Geom_BSplineSurface>(aSurface);
     if (aBs.IsNull())
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND, "surface is not a B-spline");
@@ -1784,12 +1783,12 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_surface_bspline_v_knots(const occtl_gr
       return OCCTL_INVALID_ARGUMENT;
     }
     occtl_status_t                   aStatus;
-    const occ::handle<Geom_Surface>* aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
-    if (aSurface == nullptr)
+    occ::handle<Geom_Surface> aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
+    if (aSurface.IsNull())
     {
       return aStatus;
     }
-    const occ::handle<Geom_BSplineSurface> aBs = occ::down_cast<Geom_BSplineSurface>(*aSurface);
+    const occ::handle<Geom_BSplineSurface> aBs = occ::down_cast<Geom_BSplineSurface>(aSurface);
     if (aBs.IsNull())
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND, "surface is not a B-spline");
@@ -1832,12 +1831,12 @@ OCCTL_API occtl_status_t OCCTL_CALL
       return OCCTL_INVALID_ARGUMENT;
     }
     occtl_status_t                   aStatus;
-    const occ::handle<Geom_Surface>* aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
-    if (aSurface == nullptr)
+    occ::handle<Geom_Surface> aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
+    if (aSurface.IsNull())
     {
       return aStatus;
     }
-    const occ::handle<Geom_BSplineSurface> aBs = occ::down_cast<Geom_BSplineSurface>(*aSurface);
+    const occ::handle<Geom_BSplineSurface> aBs = occ::down_cast<Geom_BSplineSurface>(aSurface);
     if (aBs.IsNull())
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND, "surface is not a B-spline");
@@ -1880,12 +1879,12 @@ OCCTL_API occtl_status_t OCCTL_CALL
       return OCCTL_INVALID_ARGUMENT;
     }
     occtl_status_t                   aStatus;
-    const occ::handle<Geom_Surface>* aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
-    if (aSurface == nullptr)
+    occ::handle<Geom_Surface> aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
+    if (aSurface.IsNull())
     {
       return aStatus;
     }
-    const occ::handle<Geom_BSplineSurface> aBs = occ::down_cast<Geom_BSplineSurface>(*aSurface);
+    const occ::handle<Geom_BSplineSurface> aBs = occ::down_cast<Geom_BSplineSurface>(aSurface);
     if (aBs.IsNull())
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND, "surface is not a B-spline");
@@ -1927,12 +1926,12 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_surface_bspline_weights(const occtl_gr
       return OCCTL_INVALID_ARGUMENT;
     }
     occtl_status_t                   aStatus;
-    const occ::handle<Geom_Surface>* aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
-    if (aSurface == nullptr)
+    occ::handle<Geom_Surface> aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
+    if (aSurface.IsNull())
     {
       return aStatus;
     }
-    const occ::handle<Geom_BSplineSurface> aBs = occ::down_cast<Geom_BSplineSurface>(*aSurface);
+    const occ::handle<Geom_BSplineSurface> aBs = occ::down_cast<Geom_BSplineSurface>(aSurface);
     if (aBs.IsNull())
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND, "surface is not a B-spline");
@@ -2024,12 +2023,12 @@ OCCTL_API occtl_status_t OCCTL_CALL
       return OCCTL_INVALID_ARGUMENT;
     }
     occtl_status_t                   aStatus;
-    const occ::handle<Geom_Surface>* aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
-    if (aSurface == nullptr)
+    occ::handle<Geom_Surface> aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
+    if (aSurface.IsNull())
     {
       return aStatus;
     }
-    const occ::handle<Geom_BSplineSurface> aBs = occ::down_cast<Geom_BSplineSurface>(*aSurface);
+    const occ::handle<Geom_BSplineSurface> aBs = occ::down_cast<Geom_BSplineSurface>(aSurface);
     if (aBs.IsNull())
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND, "surface is not a B-spline");
@@ -2107,12 +2106,12 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_surface_as_bspline(const occtl_graph_t
       return OCCTL_VERSION_MISMATCH;
     }
     occtl_status_t                   aStatus;
-    const occ::handle<Geom_Surface>* aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
-    if (aSurface == nullptr)
+    occ::handle<Geom_Surface> aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
+    if (aSurface.IsNull())
     {
       return aStatus;
     }
-    const occ::handle<Geom_BSplineSurface> aBs = occ::down_cast<Geom_BSplineSurface>(*aSurface);
+    const occ::handle<Geom_BSplineSurface> aBs = occ::down_cast<Geom_BSplineSurface>(aSurface);
     if (aBs.IsNull())
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND, "surface is not a B-spline");
@@ -2222,12 +2221,12 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_surface_reverse(occtl_graph_t*  theGra
       return OCCTL_INVALID_ARGUMENT;
     }
     occtl_status_t                   aStatus;
-    const occ::handle<Geom_Surface>* aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
-    if (aSurface == nullptr)
+    occ::handle<Geom_Surface> aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
+    if (aSurface.IsNull())
     {
       return aStatus;
     }
-    occ::handle<Geom_Surface> aReversed = (*aSurface)->UReversed();
+    occ::handle<Geom_Surface> aReversed = aSurface->UReversed();
     BRepGraph_FaceSurfaceRepId    aRepId    = OcctL::Compat::CreateSurfaceRep(theGraph->graph, aReversed);
     *theOutId                           = OcctL::Topo::PackRepId(aRepId);
     return OCCTL_OK;
@@ -2249,14 +2248,14 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_surface_transformed(occtl_graph_t*    
       return OCCTL_INVALID_ARGUMENT;
     }
     occtl_status_t                   aStatus;
-    const occ::handle<Geom_Surface>* aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
-    if (aSurface == nullptr)
+    occ::handle<Geom_Surface> aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
+    if (aSurface.IsNull())
     {
       return aStatus;
     }
     gp_Trsf                   aTrsf = OcctL::Geom::ToGpTrsf(theTransform);
     occ::handle<Geom_Surface> aTransformed =
-      occ::handle<Geom_Surface>::DownCast((*aSurface)->Transformed(aTrsf));
+      occ::handle<Geom_Surface>::DownCast(aSurface->Transformed(aTrsf));
     BRepGraph_FaceSurfaceRepId aRepId = OcctL::Compat::CreateSurfaceRep(theGraph->graph, aTransformed);
     *theOutId                     = OcctL::Topo::PackRepId(aRepId);
     return OCCTL_OK;
@@ -2278,15 +2277,15 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_surface_translated(occtl_graph_t*  the
       return OCCTL_INVALID_ARGUMENT;
     }
     occtl_status_t                   aStatus;
-    const occ::handle<Geom_Surface>* aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
-    if (aSurface == nullptr)
+    occ::handle<Geom_Surface> aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
+    if (aSurface.IsNull())
     {
       return aStatus;
     }
     gp_Trsf aTrsf;
     aTrsf.SetTranslation(OcctL::Geom::ToGp(theDelta));
     occ::handle<Geom_Surface> aTranslated =
-      occ::handle<Geom_Surface>::DownCast((*aSurface)->Transformed(aTrsf));
+      occ::handle<Geom_Surface>::DownCast(aSurface->Transformed(aTrsf));
     BRepGraph_FaceSurfaceRepId aRepId = OcctL::Compat::CreateSurfaceRep(theGraph->graph, aTranslated);
     *theOutId                     = OcctL::Topo::PackRepId(aRepId);
     return OCCTL_OK;
@@ -2309,15 +2308,15 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_surface_rotated(occtl_graph_t*        
       return OCCTL_INVALID_ARGUMENT;
     }
     occtl_status_t                   aStatus;
-    const occ::handle<Geom_Surface>* aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
-    if (aSurface == nullptr)
+    occ::handle<Geom_Surface> aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
+    if (aSurface.IsNull())
     {
       return aStatus;
     }
     gp_Trsf aTrsf;
     aTrsf.SetRotation(OcctL::Geom::ToGpAx1(theAxis), theAngle);
     occ::handle<Geom_Surface> aRotated =
-      occ::handle<Geom_Surface>::DownCast((*aSurface)->Transformed(aTrsf));
+      occ::handle<Geom_Surface>::DownCast(aSurface->Transformed(aTrsf));
     BRepGraph_FaceSurfaceRepId aRepId = OcctL::Compat::CreateSurfaceRep(theGraph->graph, aRotated);
     *theOutId                     = OcctL::Topo::PackRepId(aRepId);
     return OCCTL_OK;
@@ -2345,15 +2344,15 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_surface_scaled(occtl_graph_t*  theGrap
       return OCCTL_GEOMETRY_INVALID;
     }
     occtl_status_t                   aStatus;
-    const occ::handle<Geom_Surface>* aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
-    if (aSurface == nullptr)
+    occ::handle<Geom_Surface> aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
+    if (aSurface.IsNull())
     {
       return aStatus;
     }
     gp_Trsf aTrsf;
     aTrsf.SetScale(OcctL::Geom::ToGp(theOrigin), theFactor);
     occ::handle<Geom_Surface> aScaled =
-      occ::handle<Geom_Surface>::DownCast((*aSurface)->Transformed(aTrsf));
+      occ::handle<Geom_Surface>::DownCast(aSurface->Transformed(aTrsf));
     BRepGraph_FaceSurfaceRepId aRepId = OcctL::Compat::CreateSurfaceRep(theGraph->graph, aScaled);
     *theOutId                     = OcctL::Topo::PackRepId(aRepId);
     return OCCTL_OK;
@@ -2374,12 +2373,12 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_surface_area(const occtl_graph_t* theG
       return OCCTL_INVALID_ARGUMENT;
     }
     occtl_status_t                   aStatus;
-    const occ::handle<Geom_Surface>* aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
-    if (aSurface == nullptr)
+    occ::handle<Geom_Surface> aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
+    if (aSurface.IsNull())
     {
       return aStatus;
     }
-    GeomAdaptor_Surface anAdaptor(*aSurface);
+    GeomAdaptor_Surface anAdaptor(aSurface);
     const double        aU1 = anAdaptor.FirstUParameter();
     const double        aU2 = anAdaptor.LastUParameter();
     const double        aV1 = anAdaptor.FirstVParameter();
@@ -2394,7 +2393,7 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_surface_area(const occtl_graph_t* theG
       return OCCTL_GEOMETRY_INVALID;
     }
 
-    BRepBuilderAPI_MakeFace aFaceMaker(*aSurface, aU1, aU2, aV1, aV2, Precision::Confusion());
+    BRepBuilderAPI_MakeFace aFaceMaker(aSurface, aU1, aU2, aV1, aV2, Precision::Confusion());
     if (!aFaceMaker.IsDone())
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_GEOMETRY_INVALID,
@@ -2426,12 +2425,12 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_surface_project_point(const occtl_grap
       return OCCTL_INVALID_ARGUMENT;
     }
     occtl_status_t                   aStatus;
-    const occ::handle<Geom_Surface>* aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
-    if (aSurface == nullptr)
+    occ::handle<Geom_Surface> aSurface = UnpackSurface(theGraph, theSurfaceId, aStatus);
+    if (aSurface.IsNull())
     {
       return aStatus;
     }
-    GeomAPI_ProjectPointOnSurf aProj(OcctL::Geom::ToGp(thePoint), *aSurface);
+    GeomAPI_ProjectPointOnSurf aProj(OcctL::Geom::ToGp(thePoint), aSurface);
     if (aProj.NbPoints() < 1)
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_GEOMETRY_INVALID, "projection failed");
