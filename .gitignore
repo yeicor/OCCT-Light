@@ -28,6 +28,9 @@ cmake_install.cmake
 install_manifest.txt
 compile_commands.json
 
+# vcpkg installed tree (downloaded packages)
+vcpkg_installed/
+
 # IDE
 .vscode/
 .claude/

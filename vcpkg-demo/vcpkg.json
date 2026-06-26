@@ -1,0 +1,12 @@
+{
+  "name": "occtl-demo",
+  "version": "0.1.0",
+  "description": "Minimal demo consuming OCCT-Light via vcpkg",
+  "dependencies": [
+    {
+      "name": "occtl",
+      "version>=": "0.1.0"
+    }
+  ],
+  "builtin-baseline": "6da16a9600492fbcb7713560d993ac76823290de"
+}

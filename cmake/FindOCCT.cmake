@@ -81,12 +81,17 @@ if(EXISTS "${OpenCASCADE_DIR}/OpenCASCADEConfig.cmake")
   string(REGEX MATCH "set \\(OpenCASCADE_MAINTENANCE_VERSION\\s+\"([^\"]+)\"\\)" _dummy "${_occt_config_content}")
   set(OpenCASCADE_MAINTENANCE_VERSION "${CMAKE_MATCH_1}")
 
-  # Compute install prefix from the config file location (same logic as OpenCASCADEConfig.cmake).
-  # OpenCASCADEConfig.cmake does one LEVEL of get_filename_component to go from
-  # <prefix>/lib/cmake/opencascade/OpenCASCADEConfig.cmake → <prefix>.
-  # In a build-directory layout the config is at <build>/OpenCASCADEConfig.cmake,
-  # so one PATH component gives <build>.
-  get_filename_component(_occt_prefix "${_occt_config_file}" PATH)
+  # Compute install prefix from the config file location (same logic as the
+  # upstream OpenCASCADEConfig.cmake shipped with OCCT 8.0.0-p1).
+  #
+  # Upstream starts by stripping the filename, then the module directory
+  # (e.g. "opencascade"), then the cmake/lib/share directory, so that the
+  # following layouts all resolve correctly:
+  #   <prefix>/lib/cmake/opencascade/OpenCASCADEConfig.cmake
+  #   <prefix>/share/opencascade/OpenCASCADEConfig.cmake   (vcpkg)
+  #   <build-dir>/OpenCASCADEConfig.cmake
+  get_filename_component(_occt_prefix "${_occt_config_file}" PATH)        # strip filename
+  get_filename_component(_occt_prefix "${_occt_prefix}" PATH)             # strip module dir (e.g. "opencascade")
   if(_occt_prefix MATCHES "/cmake$")
     get_filename_component(_occt_prefix "${_occt_prefix}" PATH)
   endif()
@@ -97,6 +102,8 @@ if(EXISTS "${OpenCASCADE_DIR}/OpenCASCADEConfig.cmake")
     get_filename_component(_occt_prefix "${_occt_prefix}" PATH)
   endif()
   set(OpenCASCADE_INSTALL_PREFIX "${_occt_prefix}")
+
+  message(STATUS "OCCT install prefix: ${OpenCASCADE_INSTALL_PREFIX}")
 
   # Set paths
   set(OpenCASCADE_INCLUDE_DIR "${OpenCASCADE_INSTALL_PREFIX}/include/opencascade")
@@ -113,6 +120,17 @@ if(EXISTS "${OpenCASCADE_DIR}/OpenCASCADEConfig.cmake")
 
   # Import the single monolithic targets file
   include("${OpenCASCADE_DIR}/OpenCASCADETargets.cmake" OPTIONAL)
+
+  # Import per-module targets files (vcpkg layout does not have a monolithic one).
+  # The OCCT targets may reference these external packages as link dependencies.
+  find_package(Freetype QUIET)
+  find_package(Fontconfig QUIET)
+  find_package(RapidJSON CONFIG QUIET)
+  file(GLOB _occt_module_targets
+       "${OpenCASCADE_DIR}/OpenCASCADE*Targets.cmake")
+  foreach(_f ${_occt_module_targets})
+    include("${_f}")
+  endforeach()
 
   # OCCT 8.0.0-p1's targets file does not set INTERFACE_INCLUDE_DIRECTORIES on
   # imported targets.  Add the include directory globally so that targets linking

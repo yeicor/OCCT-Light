@@ -28,6 +28,7 @@ occtl_add_module(geom
   PUBLIC_HEADERS
     ${CMAKE_SOURCE_DIR}/include/occtl/occtl_geom.h
     ${CMAKE_SOURCE_DIR}/include/occtl/occtl_curves.h
+    ${CMAKE_SOURCE_DIR}/include/occtl/occtl_curves_common.h
     ${CMAKE_SOURCE_DIR}/include/occtl/occtl_curves2d.h
     ${CMAKE_SOURCE_DIR}/include/occtl/occtl_surfaces.h
     ${CMAKE_SOURCE_DIR}/include/occtl-hpp/geom.hpp

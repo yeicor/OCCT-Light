@@ -395,19 +395,16 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_transform_scale(occtl_point3_t     the
       OcctL::Core::ErrorState::Current().Set(OCCTL_INVALID_ARGUMENT, "out_transform is NULL");
       return OCCTL_INVALID_ARGUMENT;
     }
-    try
-    {
-      OCC_CATCH_SIGNALS;
-      gp_Trsf aT;
-      aT.SetScale(OcctL::Geom::ToGp(theCenter), theS);
-      *theOutTransform = OcctL::Geom::FromGp(aT);
-      return OCCTL_OK;
-    }
-    catch (const Standard_Failure&)
+    OCC_CATCH_SIGNALS;
+    if (std::abs(theS) <= gp::Resolution())
     {
       OcctL::Core::ErrorState::Current().Set(OCCTL_GEOMETRY_INVALID, "scale factor is zero");
       return OCCTL_GEOMETRY_INVALID;
     }
+    gp_Trsf aT;
+    aT.SetScale(OcctL::Geom::ToGp(theCenter), theS);
+    *theOutTransform = OcctL::Geom::FromGp(aT);
+    return OCCTL_OK;
   });
 }
 
