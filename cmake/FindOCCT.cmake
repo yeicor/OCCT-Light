@@ -143,6 +143,19 @@ endif()
 if(NOT OpenCASCADE_FOUND)
   # Fallback: let CMake search normally
   find_package(OpenCASCADE CONFIG QUIET)
+  # If found via config mode, also add the include directory globally.
+  # This is needed because OCCT targets are linked via $<LINK_ONLY> from
+  # OCCTL, which prevents INTERFACE_INCLUDE_DIRECTORIES from propagating.
+  if(OpenCASCADE_FOUND)
+    if(NOT OpenCASCADE_INCLUDE_DIR AND OpenCASCADE_DIR)
+      get_filename_component(_occt_prefix "${OpenCASCADE_DIR}" PATH)
+      get_filename_component(_occt_prefix "${_occt_prefix}" PATH)
+      set(OpenCASCADE_INCLUDE_DIR "${_occt_prefix}/include/opencascade")
+    endif()
+    if(OpenCASCADE_INCLUDE_DIR)
+      include_directories(SYSTEM "${OpenCASCADE_INCLUDE_DIR}")
+    endif()
+  endif()
 endif()
 
 # Validate every requested toolkit target is present.  Target existence is the
