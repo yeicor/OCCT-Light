@@ -34,6 +34,7 @@ set(OCCTL_PUBLIC_DEFINITIONS
   OCCTL_VERSION_MINOR=${OCCTL_VERSION_MINOR}
   OCCTL_VERSION_PATCH=${OCCTL_VERSION_PATCH}
   OCCTL_ABI_VERSION=${OCCTL_ABI_VERSION}
+  $<$<PLATFORM_ID:Windows>:_USE_MATH_DEFINES>
 )
 
 # When building a shared library: dllexport on the producing target; consumers (any target

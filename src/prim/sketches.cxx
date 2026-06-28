@@ -60,6 +60,7 @@
 
 #include <cmath>
 #include <algorithm>
+#include <cstddef>
 #include <vector>
 
 namespace
@@ -1159,10 +1160,10 @@ OCCTL_API occtl_status_t OCCTL_CALL
 
     // Build upper hull
     const size_t aLowerSize = aHull.size();
-    for (ssize_t anI = static_cast<ssize_t>(a2dPoints.size()) - 2; anI >= 0; --anI)
+    for (std::ptrdiff_t anI = static_cast<std::ptrdiff_t>(a2dPoints.size()) - 2; anI >= 0; --anI)
     {
       const Pt2d& aP = a2dPoints[static_cast<size_t>(anI)];
-      while (static_cast<ssize_t>(aHull.size()) >= static_cast<ssize_t>(aLowerSize) + 1 &&
+      while (static_cast<std::ptrdiff_t>(aHull.size()) >= static_cast<std::ptrdiff_t>(aLowerSize) + 1 &&
              aCross(aHull[aHull.size() - 2], aHull.back(), aP) <= 0)
       {
         aHull.pop_back();
