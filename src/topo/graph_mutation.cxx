@@ -39,6 +39,9 @@
 #include <BRepGraph_WireExplorer.hxx>
 #include <BRepOffsetAPI_MakeOffset.hxx>
 
+#include "GraphHandle.hxx"
+#include "../mesh/MeshCache.hxx"
+
 #include <Geom_Line.hxx>
 #include <GeomAbs_JoinType.hxx>
 #include <NCollection_Array1.hxx>
@@ -439,6 +442,20 @@ bool measureWireAreaWithOcct(const BRepGraph&       theGraph,
   {
     return false;
   }
+}
+
+void invalidateMeshCache(occtl_graph_t* const theGraph) noexcept
+{
+#ifdef OCCTL_HAS_MESH
+  if (theGraph == nullptr || !theGraph->meshCache)
+  {
+    return;
+  }
+  std::lock_guard<std::mutex> aLock(theGraph->meshCache->Mutex());
+  theGraph->meshCache->Invalidate();
+#else
+  (void)theGraph;
+#endif
 }
 
 } // namespace
@@ -2063,6 +2080,8 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_topo_remove(occtl_graph_t* const  theG
     }
 
     theGraph->graph.Editor().Gen().RemoveNode(aNodeId);
+    theGraph->graph.Editor().Gen().CleanupRemovedReferences();
+    invalidateMeshCache(theGraph);
     return OCCTL_OK;
   });
 }
@@ -2087,6 +2106,8 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_topo_remove_subgraph(occtl_graph_t* co
     }
 
     theGraph->graph.Editor().Gen().RemoveSubgraph(aNodeId);
+    theGraph->graph.Editor().Gen().CleanupRemovedReferences();
+    invalidateMeshCache(theGraph);
     return OCCTL_OK;
   });
 }
