@@ -1233,7 +1233,8 @@ void BindShapeAndSubshapes(
   NCollection_DataMap<TopoDS_Shape, BRepGraph_NodeId, TopTools_ShapeMapHasher>& theOutMap)
 {
   auto bind = [&](const TopoDS_Shape& theSub) {
-    if (theSub.IsNull() || theOutMap.IsBound(theSub))
+    if (theSub.IsNull() || theOutMap.IsBound(theSub)
+        || !BRepTools_History::IsSupportedType(theSub))
     {
       return;
     }

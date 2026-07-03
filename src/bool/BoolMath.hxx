@@ -140,7 +140,8 @@ inline occtl_status_t ResolveShapeList(
     // by AddWithHistory to translate BRepTools_History's TopoDS_Shape
     // results into NodeIds and UIDs.
     auto bind = [&](const TopoDS_Shape& theSub) {
-      if (theSub.IsNull() || theOutInputs.IsBound(theSub))
+      if (theSub.IsNull() || theOutInputs.IsBound(theSub)
+          || !BRepTools_History::IsSupportedType(theSub))
       {
         return;
       }

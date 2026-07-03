@@ -176,7 +176,8 @@ static void bindInputShape(
   theArgs.Append(theRoot);
 
   auto bind = [&](const TopoDS_Shape& theSubShape) {
-    if (theSubShape.IsNull() || theInputs.IsBound(theSubShape))
+    if (theSubShape.IsNull() || theInputs.IsBound(theSubShape)
+        || !BRepTools_History::IsSupportedType(theSubShape))
     {
       return;
     }
