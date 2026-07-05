@@ -50,7 +50,9 @@
 #include <Poly_PolygonOnTriangulation.hxx>
 #include <Poly_Triangle.hxx>
 #include <Poly_Triangulation.hxx>
+#include <TopAbs_Orientation.hxx>
 #include <TopLoc_Location.hxx>
+#include <TopoDS.hxx>
 #include <TopoDS_Face.hxx>
 #include <TopoDS_Shape.hxx>
 #include <TopoDS_Wire.hxx>
@@ -136,6 +138,12 @@ occtl_uid_t uidFor(const occtl_graph* const theGraph, const BRepGraph_NodeId the
   return OcctL::Topo::PackUID(aUid);
 }
 
+bool faceIsReversed(const occtl_graph* const theGraph, const BRepGraph_FaceId theFaceId)
+{
+  const TopoDS_Shape aFaceShape = theGraph->graph.Shapes().Shape(theFaceId);
+  return !aFaceShape.IsNull() && TopoDS::Face(aFaceShape).Orientation() == TopAbs_REVERSED;
+}
+
 //! Validates a node id and resolves it to a typed BRepGraph id of the
 //! requested kind. Returns the matching status code on failure (NULL
 //! graph / out → INVALID_ARGUMENT, removed/invalid → NOT_FOUND, wrong
@@ -169,6 +177,7 @@ occtl_status_t resolveTyped(const occtl_graph* const     theGraph,
 //!         handle was null or had no triangles.
 bool materialiseFace(const occ::handle<Poly_Triangulation>& theTri,
                      const occtl_uid_t                      theSourceUid,
+                     const bool                             theReverseWinding,
                      OcctL::Mesh::FaceMeshBuffers&          theSlot)
 {
   if (theTri.IsNull())
@@ -202,9 +211,10 @@ bool materialiseFace(const occ::handle<Poly_Triangulation>& theTri,
     {
       NCollection_Vec3<float> aN;
       theTri->Normal(i, aN);
-      theSlot.myNormals.Append(static_cast<double>(aN.x()));
-      theSlot.myNormals.Append(static_cast<double>(aN.y()));
-      theSlot.myNormals.Append(static_cast<double>(aN.z()));
+      const double aSign = theReverseWinding ? -1.0 : 1.0;
+      theSlot.myNormals.Append(aSign * static_cast<double>(aN.x()));
+      theSlot.myNormals.Append(aSign * static_cast<double>(aN.y()));
+      theSlot.myNormals.Append(aSign * static_cast<double>(aN.z()));
     }
   }
 
@@ -224,8 +234,16 @@ bool materialiseFace(const occ::handle<Poly_Triangulation>& theTri,
     int                  aA = 0, aB = 0, aC = 0;
     aTri.Get(aA, aB, aC);
     theSlot.myTriangles.Append(static_cast<uint32_t>(aA - 1));
-    theSlot.myTriangles.Append(static_cast<uint32_t>(aB - 1));
-    theSlot.myTriangles.Append(static_cast<uint32_t>(aC - 1));
+    if (theReverseWinding)
+    {
+      theSlot.myTriangles.Append(static_cast<uint32_t>(aC - 1));
+      theSlot.myTriangles.Append(static_cast<uint32_t>(aB - 1));
+    }
+    else
+    {
+      theSlot.myTriangles.Append(static_cast<uint32_t>(aB - 1));
+      theSlot.myTriangles.Append(static_cast<uint32_t>(aC - 1));
+    }
   }
 
   theSlot.myDeflection = theTri->Deflection();
@@ -249,6 +267,7 @@ void fillFaceView(const OcctL::Mesh::FaceMeshBuffers& theSlot,
 
 void appendTriangulationSoup(const occ::handle<Poly_Triangulation>& theTri,
                              const TopLoc_Location&                 theLocation,
+                             const bool                             theReverseWinding,
                              OcctL::Mesh::TriangleSoupBuffers&      theSlot)
 {
   if (theTri.IsNull())
@@ -280,8 +299,16 @@ void appendTriangulationSoup(const occ::handle<Poly_Triangulation>& theTri,
     int                  aA = 0, aB = 0, aC = 0;
     aTri.Get(aA, aB, aC);
     theSlot.myTriangles.Append(aBase + static_cast<uint32_t>(aA - 1));
-    theSlot.myTriangles.Append(aBase + static_cast<uint32_t>(aB - 1));
-    theSlot.myTriangles.Append(aBase + static_cast<uint32_t>(aC - 1));
+    if (theReverseWinding)
+    {
+      theSlot.myTriangles.Append(aBase + static_cast<uint32_t>(aC - 1));
+      theSlot.myTriangles.Append(aBase + static_cast<uint32_t>(aB - 1));
+    }
+    else
+    {
+      theSlot.myTriangles.Append(aBase + static_cast<uint32_t>(aB - 1));
+      theSlot.myTriangles.Append(aBase + static_cast<uint32_t>(aC - 1));
+    }
   }
   ++theSlot.myFaceCount;
 }
@@ -289,6 +316,7 @@ void appendTriangulationSoup(const occ::handle<Poly_Triangulation>& theTri,
 void appendFaceSoup(const occtl_graph* const          theGraph,
                     const BRepGraph_FaceId            theFaceId,
                     const TopLoc_Location&            theLocation,
+                    const bool                        theReverseWinding,
                     OcctL::Mesh::TriangleSoupBuffers& theSlot)
 {
   const BRepGraph::MeshView::CacheView::FaceOps& aFaceOps = theGraph->graph.Mesh().Cache().Faces();
@@ -298,7 +326,7 @@ void appendFaceSoup(const occtl_graph* const          theGraph,
   }
 
   const occ::handle<Poly_Triangulation>& aTri = aFaceOps.Triangulation(theFaceId);
-  appendTriangulationSoup(aTri, theLocation, theSlot);
+  appendTriangulationSoup(aTri, theLocation, theReverseWinding, theSlot);
 }
 
 void fillTriangleSoupView(const OcctL::Mesh::TriangleSoupBuffers&   theSlot,
@@ -322,7 +350,9 @@ occtl_status_t populateTriangleSoup(const occtl_graph* const          theGraph,
   {
     for (BRepGraph_FaceIterator anIt(theGraph->graph); anIt.More(); anIt.Next())
     {
-      appendFaceSoup(theGraph, BRepGraph_FaceId(anIt.CurrentId()), TopLoc_Location(), theSlot);
+      const BRepGraph_FaceId aFaceId(anIt.CurrentId());
+      appendFaceSoup(
+        theGraph, aFaceId, TopLoc_Location(), faceIsReversed(theGraph, aFaceId), theSlot);
     }
   }
   else
@@ -336,19 +366,27 @@ occtl_status_t populateTriangleSoup(const occtl_graph* const          theGraph,
 
     if (aRootId.NodeKind == BRepGraph_NodeId::Kind::Face)
     {
-      appendFaceSoup(theGraph, BRepGraph_FaceId(aRootId), TopLoc_Location(), theSlot);
+      appendFaceSoup(theGraph,
+                     BRepGraph_FaceId(aRootId),
+                     TopLoc_Location(),
+                     faceIsReversed(theGraph, BRepGraph_FaceId(aRootId)),
+                     theSlot);
     }
     else
     {
       BRepGraph_ChildExplorer::Config aConfig;
       aConfig.TargetKind            = BRepGraph_NodeId::Kind::Face;
       aConfig.AccumulateLocation    = true;
-      aConfig.AccumulateOrientation = false;
+      aConfig.AccumulateOrientation = true;
       for (BRepGraph_ChildExplorer anIt(theGraph->graph, aRootId, aConfig); anIt.More();
            anIt.Next())
       {
         const BRepGraphInc::NodeInstance anInst = anIt.Current();
-        appendFaceSoup(theGraph, BRepGraph_FaceId(anInst.DefId), anInst.Location, theSlot);
+        appendFaceSoup(theGraph,
+                       BRepGraph_FaceId(anInst.DefId),
+                       anInst.Location,
+                       anInst.Orientation == TopAbs_REVERSED,
+                       theSlot);
       }
     }
   }
@@ -1930,7 +1968,7 @@ OCCTL_API occtl_status_t OCCTL_CALL
     {
       resetFaceSlot(aSlot);
     }
-    if (!materialiseFace(aTri, aFaceUid, aSlot))
+    if (!materialiseFace(aTri, aFaceUid, faceIsReversed(graph, aFaceId), aSlot))
     {
       return OCCTL_NOT_FOUND;
     }
@@ -2006,7 +2044,7 @@ OCCTL_API occtl_status_t OCCTL_CALL
     {
       resetFaceSlot(aSlot);
     }
-    if (!materialiseFace(aTri, aFaceUid, aSlot))
+    if (!materialiseFace(aTri, aFaceUid, faceIsReversed(graph, aFaceId), aSlot))
     {
       return OCCTL_NOT_FOUND;
     }

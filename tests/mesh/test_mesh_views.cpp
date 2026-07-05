@@ -45,6 +45,84 @@ occtl_node_id_t firstFaceOf(occtl_graph_t* const theGraph)
   return aFaceId;
 }
 
+occtl_node_id_t firstFaceWithOrientation(occtl_graph_t* const   theGraph,
+                                         const occtl_node_id_t  theRoot,
+                                         const occtl_orientation_t theOrientation)
+{
+  occtl_topo_child_explorer_config_t aConfig = OCCTL_TOPO_CHILD_EXPLORER_CONFIG_INIT;
+  aConfig.mode                               = OCCTL_TOPO_EXPLORER_RECURSIVE;
+  aConfig.target_kind                        = OCCTL_KIND_FACE;
+
+  occtl_topo_explorer_iter_t* anIter = nullptr;
+  EXPECT_EQ(occtl_topo_child_explorer_create(theGraph, theRoot, &aConfig, &anIter), OCCTL_OK);
+
+  occtl_node_id_t    aFace        = OCCTL_NODE_ID_INVALID;
+  occtl_transform_t  aTransform   = occtl_transform_identity();
+  occtl_orientation_t anOrientation = OCCTL_ORIENTATION_FORWARD;
+  while (occtl_topo_explorer_iter_next(anIter, &aFace, &aTransform, &anOrientation) == OCCTL_OK)
+  {
+    if (anOrientation == theOrientation)
+    {
+      occtl_topo_explorer_iter_free(anIter);
+      return aFace;
+    }
+  }
+
+  occtl_topo_explorer_iter_free(anIter);
+  return OCCTL_NODE_ID_INVALID;
+}
+
+template <typename View>
+double firstTriangleDotOutward(const View& theView, const double theCenterX, const double theCenterY, const double theCenterZ)
+{
+  EXPECT_NE(theView.nodes, nullptr);
+  EXPECT_NE(theView.triangles, nullptr);
+  EXPECT_GT(theView.node_count, 0u);
+  EXPECT_GT(theView.triangle_count, 0u);
+
+  double aFaceX = 0.0;
+  double aFaceY = 0.0;
+  double aFaceZ = 0.0;
+  for (size_t i = 0; i < theView.node_count; ++i)
+  {
+    aFaceX += theView.nodes[i * 3u];
+    aFaceY += theView.nodes[i * 3u + 1u];
+    aFaceZ += theView.nodes[i * 3u + 2u];
+  }
+  const double aInvCount = 1.0 / static_cast<double>(theView.node_count);
+  aFaceX *= aInvCount;
+  aFaceY *= aInvCount;
+  aFaceZ *= aInvCount;
+
+  const uint32_t aI0 = theView.triangles[0];
+  const uint32_t aI1 = theView.triangles[1];
+  const uint32_t aI2 = theView.triangles[2];
+  const double   aAx = theView.nodes[aI0 * 3u];
+  const double   aAy = theView.nodes[aI0 * 3u + 1u];
+  const double   aAz = theView.nodes[aI0 * 3u + 2u];
+  const double   aBx = theView.nodes[aI1 * 3u];
+  const double   aBy = theView.nodes[aI1 * 3u + 1u];
+  const double   aBz = theView.nodes[aI1 * 3u + 2u];
+  const double   aCx = theView.nodes[aI2 * 3u];
+  const double   aCy = theView.nodes[aI2 * 3u + 1u];
+  const double   aCz = theView.nodes[aI2 * 3u + 2u];
+
+  const double aE1x = aBx - aAx;
+  const double aE1y = aBy - aAy;
+  const double aE1z = aBz - aAz;
+  const double aE2x = aCx - aAx;
+  const double aE2y = aCy - aAy;
+  const double aE2z = aCz - aAz;
+  const double aNx  = aE1y * aE2z - aE1z * aE2y;
+  const double aNy  = aE1z * aE2x - aE1x * aE2z;
+  const double aNz  = aE1x * aE2y - aE1y * aE2x;
+
+  const double aDx = aFaceX - theCenterX;
+  const double aDy = aFaceY - theCenterY;
+  const double aDz = aFaceZ - theCenterZ;
+  return aNx * aDx + aNy * aDy + aNz * aDz;
+}
+
 // Iterate every coedge in the graph; first coedge wins.
 occtl_node_id_t firstCoedgeOf(occtl_graph_t* const theGraph)
 {
@@ -457,6 +535,30 @@ TEST_F(MeshFixture, FaceTriangulation_Deflection_IsFinite)
   ASSERT_EQ(occtl_mesh_face_triangulation(myGraph, firstFaceOf(myGraph), &aView), OCCTL_OK);
   EXPECT_GE(aView.deflection, 0.0);
   EXPECT_FALSE(std::isnan(aView.deflection));
+}
+
+TEST_F(MeshFixture, FaceTriangulation_ReversedFace_WindingMatchesTopology)
+{
+  const occtl_node_id_t aSolid = makeBox(myGraph, 10.0, 20.0, 30.0);
+  ASSERT_NE(aSolid.bits, 0u);
+  occtl_mesh_options_t aOpts = OCCTL_MESH_OPTIONS_INIT;
+  ASSERT_EQ(occtl_mesh_generate(myGraph, nullptr, 0, &aOpts), OCCTL_OK);
+
+  const occtl_node_id_t aReversedFace =
+    firstFaceWithOrientation(myGraph, aSolid, OCCTL_ORIENTATION_REVERSED);
+  ASSERT_NE(aReversedFace.bits, 0u);
+
+  const double aCenterX = 5.0;
+  const double aCenterY = 10.0;
+  const double aCenterZ = 15.0;
+
+  occtl_triangulation_view_t aFaceView{};
+  ASSERT_EQ(occtl_mesh_face_triangulation(myGraph, aReversedFace, &aFaceView), OCCTL_OK);
+  EXPECT_GT(firstTriangleDotOutward(aFaceView, aCenterX, aCenterY, aCenterZ), 0.0);
+
+  occtl_mesh_triangle_buffers_view_t aSoupView{};
+  ASSERT_EQ(occtl_mesh_triangle_buffers(myGraph, aReversedFace, &aSoupView), OCCTL_OK);
+  EXPECT_GT(firstTriangleDotOutward(aSoupView, aCenterX, aCenterY, aCenterZ), 0.0);
 }
 
 TEST_F(MeshFixture, FaceNbTriangulations_NullOutCount_InvalidArgument)

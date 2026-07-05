@@ -425,6 +425,9 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_mesh_generate(occtl_graph_t*          
  * slot remembers the source node's version stamp; the next fetch after
  * any mutation (builder, boolean op, compact, #occtl_mesh_generate) sees
  * the slot as stale and re-materialises into a fresh allocation.
+ *
+ * Triangle winding and normals are adjusted to match the face's stored
+ * topological orientation before the view is exposed.
  * Existing pointers remain valid until *this* graph mutates and *another*
  * fetch on the same face triggers re-materialisation, so callers that
  * straddle a mutation must copy out or refetch.
@@ -621,6 +624,9 @@ OCCTL_API occtl_status_t OCCTL_CALL
  * locations are applied to copied vertices.  The buffer is intentionally a
  * triangle soup: vertices shared by neighboring faces may appear more than
  * once.
+ *
+ * Triangle winding follows each face's topological orientation, including
+ * accumulated orientation when the extraction root traverses occurrences.
  */
 typedef struct occtl_mesh_triangle_buffers_view
 {
