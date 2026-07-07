@@ -62,10 +62,38 @@ inline BRepBuilderAPI_TransitionMode toOcctTransition(const occtl_prim_pipe_tran
   }
 }
 
-occtl_status_t configurePipeShellMode(BRepOffsetAPI_MakePipeShell&   theMaker,
-                                      const occtl_prim_pipe_mode_t   theMode,
-                                      const occtl_axis2_placement_t& theModeAxis,
-                                      const occtl_direction3_t&      theModeBinormal)
+inline BRepFill_TypeOfContact
+toOcctAuxContact(occtl_prim_pipe_aux_contact_t theMode)
+{
+  switch (theMode)
+  {
+    case OCCTL_PIPE_AUX_CONTACT:
+      return BRepFill_Contact;
+
+    case OCCTL_PIPE_AUX_CONTACT_ON_BORDER:
+      return BRepFill_ContactOnBorder;
+
+    default:
+      return BRepFill_NoContact;
+  }
+}
+
+// Forward declarations for resolver helpers used by configurePipeShellMode.
+occtl_status_t resolveSpineWire(occtl_graph_t* const  theGraph,
+                                const occtl_node_id_t theSpineWire,
+                                TopoDS_Wire&          theWire);
+occtl_status_t resolveAuxiliaryWire(occtl_graph_t* const  theGraph,
+                                    const occtl_node_id_t theSpineWire,
+                                    TopoDS_Wire&          theWire);
+
+occtl_status_t configurePipeShellMode(BRepOffsetAPI_MakePipeShell&          theMaker,
+                                      const occtl_prim_pipe_mode_t          theMode,
+                                      const occtl_axis2_placement_t&        theModeAxis,
+                                      const occtl_direction3_t&             theModeBinormal,
+                                      occtl_graph_t* const                  theGraph,
+                                      const occtl_node_id_t                 theAuxiliaryWire,
+                                      const int32_t                         theAuxCurvilinearEquivalence,
+                                      const occtl_prim_pipe_aux_contact_t   theAuxContact)
 {
   switch (theMode)
   {
@@ -99,6 +127,28 @@ occtl_status_t configurePipeShellMode(BRepOffsetAPI_MakePipeShell&   theMaker,
       theMaker.SetMode(gp_Dir(theModeBinormal.x, theModeBinormal.y, theModeBinormal.z));
       return OCCTL_OK;
     }
+    case OCCTL_PIPE_MODE_AUXILIARY_SPINE:
+    {
+      if (OcctL::Prim::CheckBool(theAuxCurvilinearEquivalence,
+                                  "auxiliary_curvilinear_equivalence")
+          != OCCTL_OK)
+      {
+        return OCCTL_INVALID_ARGUMENT;
+      }
+
+      TopoDS_Wire anAuxWire;
+      if (const occtl_status_t aStatus =
+            resolveAuxiliaryWire(theGraph, theAuxiliaryWire, anAuxWire))
+      {
+        return aStatus;
+      }
+
+      theMaker.SetMode(anAuxWire,
+                       theAuxCurvilinearEquivalence != 0,
+                       toOcctAuxContact(theAuxContact));
+
+      return OCCTL_OK;
+    }
     default:
       OcctL::Core::ErrorState::Current().Set(OCCTL_INVALID_ARGUMENT, "unknown pipe mode");
       return OCCTL_INVALID_ARGUMENT;
@@ -121,6 +171,29 @@ occtl_status_t resolveSpineWire(occtl_graph_t* const  theGraph,
   {
     OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_FOUND,
                                            "spine_wire could not be reconstructed as TopoDS_Wire");
+    return OCCTL_NOT_FOUND;
+  }
+
+  theWire = TopoDS::Wire(aSpineShape);
+  return OCCTL_OK;
+}
+
+occtl_status_t resolveAuxiliaryWire(occtl_graph_t* const  theGraph,
+                                const occtl_node_id_t theSpineWire,
+                                TopoDS_Wire&          theWire)
+{
+  BRepGraph_NodeId aSpineId;
+  if (const occtl_status_t aStatus =
+        OcctL::Topo::ToTypedId(theGraph, theSpineWire, BRepGraph_NodeId::Kind::Wire, aSpineId))
+  {
+    return aStatus;
+  }
+
+  const TopoDS_Shape aSpineShape = theGraph->graph.Shapes().Shape(aSpineId);
+  if (aSpineShape.IsNull() || aSpineShape.ShapeType() != TopAbs_WIRE)
+  {
+    OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_FOUND,
+                                           "auxiliary_spine_wire could not be reconstructed as TopoDS_Wire");
     return OCCTL_NOT_FOUND;
   }
 
@@ -313,8 +386,10 @@ OCCTL_API occtl_status_t OCCTL_CALL
     }
 
     BRepOffsetAPI_MakePipeShell aMaker(aSpineWire);
-    if (const occtl_status_t aStatus =
-          configurePipeShellMode(aMaker, theInfo->mode, theInfo->mode_axis, theInfo->mode_binormal))
+    if (const occtl_status_t aStatus = configurePipeShellMode(
+          aMaker, theInfo->mode, theInfo->mode_axis, theInfo->mode_binormal, theGraph,
+          theInfo->auxiliary_spine_wire, theInfo->auxiliary_curvilinear_equivalence,
+          theInfo->auxiliary_contact))
     {
       return aStatus;
     }
@@ -407,8 +482,9 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_prim_make_pipe_shell_linear_law(
     }
 
     BRepOffsetAPI_MakePipeShell aMaker(aSpineWire);
-    if (const occtl_status_t aStatus =
-          configurePipeShellMode(aMaker, theInfo->mode, theInfo->mode_axis, theInfo->mode_binormal))
+    if (const occtl_status_t aStatus = configurePipeShellMode(
+          aMaker, theInfo->mode, theInfo->mode_axis, theInfo->mode_binormal, theGraph,
+          OCCTL_NODE_ID_INVALID, 0, OCCTL_PIPE_AUX_CONTACT_NONE))
     {
       return aStatus;
     }
@@ -481,8 +557,9 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_prim_make_pipe_shell_interpolated_law(
     }
 
     BRepOffsetAPI_MakePipeShell aMaker(aSpineWire);
-    if (const occtl_status_t aStatus =
-          configurePipeShellMode(aMaker, theInfo->mode, theInfo->mode_axis, theInfo->mode_binormal))
+    if (const occtl_status_t aStatus = configurePipeShellMode(
+          aMaker, theInfo->mode, theInfo->mode_axis, theInfo->mode_binormal, theGraph,
+          OCCTL_NODE_ID_INVALID, 0, OCCTL_PIPE_AUX_CONTACT_NONE))
     {
       return aStatus;
     }

@@ -467,8 +467,17 @@ typedef enum occtl_prim_pipe_mode
     3, /**< Fixed local frame given by #occtl_prim_pipe_shell_info_t::mode_axis. */
   OCCTL_PIPE_MODE_CONSTANT_BINORMAL =
     4, /**< Fixed binormal direction given by #occtl_prim_pipe_shell_info_t::mode_binormal. */
+  OCCTL_PIPE_MODE_AUXILIARY_SPINE = 5, /**< Uses an auxiliary spine for the pipe shell. */
   OCCTL_PIPE_MODE_RESERVED_FUTURE = 0x7fffffff
 } occtl_prim_pipe_mode_t;
+
+typedef enum occtl_prim_pipe_aux_contact_t
+{
+  OCCTL_PIPE_AUX_CONTACT_NONE = 0, /**< No contact; the auxiliary spine is ignored. */
+  OCCTL_PIPE_AUX_CONTACT, /**< Glue the profile to the auxiliary spine. */
+  OCCTL_PIPE_AUX_CONTACT_ON_BORDER, /**< Glue the profile to the auxiliary spine only on the border. */
+  OCCTL_PIPE_AUX_CONTACT_RESERVED_FUTURE = 0x7fffffff
+} occtl_prim_pipe_aux_contact_t;
 
 /**
  * Corner-transition mode for #occtl_prim_make_pipe_shell.
@@ -505,6 +514,9 @@ typedef struct occtl_prim_pipe_shell_info
   occtl_direction3_t      mode_binormal;     /**< Used when @c mode == CONSTANT_BINORMAL. */
   occtl_prim_pipe_transition_t transition;   /**< Corner handling; defaults to MODIFIED. */
   int32_t                      with_contact; /**< 0/1. Glue profiles to spine. */
+  occtl_node_id_t auxiliary_spine_wire; /**< Borrows it. Must be of kind #OCCTL_KIND_WIRE. */
+  int32_t auxiliary_curvilinear_equivalence; /**< 0/1. When 1, the auxiliary spine is parameterised to match the main spine. */
+  occtl_prim_pipe_aux_contact_t auxiliary_contact; /**< Auxiliary spine contact mode. */
   int32_t with_correction; /**< 0/1. Rotate profile so its normal aligns with the spine tangent. */
   int32_t make_solid;      /**< 0/1. Close the resulting shell into a solid. */
 } occtl_prim_pipe_shell_info_t;
