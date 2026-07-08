@@ -85,10 +85,11 @@ inline occ::handle<Geom_Curve> CurveFromRep(const occtl_graph_t* theGraph, occtl
     OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND, "rep id is not a Curve3D");
     return occ::handle<Geom_Curve>();
   }
-  auto& registry = OcctL::Compat::Curve3DRegistryInstance();
-  auto* entry = registry.FindByIndex(aRawId.Index);
-  if (entry) {
-    return entry->Curve;
+  {
+    auto aCurve = OcctL::Compat::Curve3DRegistryInstance().FindByIndex(aRawId.Index);
+    if (!aCurve.IsNull()) {
+      return aCurve;
+    }
   }
   BRepGraph_EdgeId aEdgeId = FindEdgeByCurve3DRep(theGraph->graph.Topo(), aRawId.Index);
   if (aEdgeId.IsValid()) {
@@ -133,10 +134,11 @@ inline occ::handle<Geom2d_Curve> Curve2DFromRep(const occtl_graph_t* theGraph, o
     OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND, "rep id is not a Curve2D");
     return occ::handle<Geom2d_Curve>();
   }
-  auto& registry = OcctL::Compat::Curve2DRegistryInstance();
-  auto* entry = registry.FindByIndex(aRawId.Index);
-  if (entry) {
-    return entry->Curve;
+  {
+    auto aCurve = OcctL::Compat::Curve2DRegistryInstance().FindByIndex(aRawId.Index);
+    if (!aCurve.IsNull()) {
+      return aCurve;
+    }
   }
   BRepGraph_CoEdgeId aCoEdgeId = FindCoEdgeByCurve2DRep(theGraph->graph.Topo(), aRawId.Index);
   if (aCoEdgeId.IsValid()) {
@@ -151,10 +153,11 @@ inline occ::handle<Geom2d_Curve> Curve2DFromRep(const occtl_graph_t* theGraph, o
 inline occ::handle<Geom_Curve>
 CurveFromRep(const BRepGraph& theGraph, const BRepGraph_EdgeCurve3DRepId& theId)
 {
-  auto& registry = OcctL::Compat::Curve3DRegistryInstance();
-  auto* entry = registry.FindByIndex(theId.Index);
-  if (entry) {
-    return entry->Curve;
+  {
+    auto aCurve = OcctL::Compat::Curve3DRegistryInstance().FindByIndex(theId.Index);
+    if (!aCurve.IsNull()) {
+      return aCurve;
+    }
   }
   const auto& topo = theGraph.Topo();
   for (auto eid = topo.Edges().StartId(); eid < topo.Edges().EndId(); ++eid)
@@ -180,10 +183,11 @@ SurfaceFromRep(const BRepGraph& theGraph, const BRepGraph_FaceSurfaceRepId& theI
 inline occ::handle<Geom2d_Curve>
 Curve2DFromRep(const BRepGraph& theGraph, const BRepGraph_CoEdgeCurve2DRepId& theId)
 {
-  auto& registry = OcctL::Compat::Curve2DRegistryInstance();
-  auto* entry = registry.FindByIndex(theId.Index);
-  if (entry) {
-    return entry->Curve;
+  {
+    auto aCurve = OcctL::Compat::Curve2DRegistryInstance().FindByIndex(theId.Index);
+    if (!aCurve.IsNull()) {
+      return aCurve;
+    }
   }
   const auto& topo = theGraph.Topo();
   for (auto cid = topo.CoEdges().StartId(); cid < topo.CoEdges().EndId(); ++cid)

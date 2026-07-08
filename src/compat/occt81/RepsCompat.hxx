@@ -17,6 +17,7 @@
 #define OCCTL_COMPAT_REPS_COMPAT_HXX
 
 #include <algorithm>
+#include <mutex>
 #include <vector>
 
 #include <BRepGraph_EditorView.hxx>
@@ -62,9 +63,11 @@ struct Curve3DRegistry
     double First, Last;
   };
   std::vector<Entry> curves;
+  mutable std::mutex mutex;
 
   ~Curve3DRegistry()
   {
+    std::lock_guard<std::mutex> lock(mutex);
     for (auto& c : curves) {
       c.Curve.Nullify();
     }
@@ -77,20 +80,31 @@ struct Curve3DRegistry
     return s_instance;
   }
 
-  Entry* FindByIndex(uint32_t theIndex)
+  occ::handle<Geom_Curve> FindByIndex(uint32_t theIndex) const
   {
-    for (auto& c : curves) {
-      if (c.Index == theIndex) return &c;
+    std::lock_guard<std::mutex> lock(mutex);
+    for (const auto& c : curves) {
+      if (c.Index == theIndex) return c.Curve;
     }
-    return nullptr;
+    return occ::handle<Geom_Curve>();
   }
 
   void Remove(uint32_t theIndex)
   {
+    std::lock_guard<std::mutex> lock(mutex);
     curves.erase(
       std::remove_if(curves.begin(), curves.end(),
                      [theIndex](const Entry& e){ return e.Index == theIndex; }),
       curves.end());
+  }
+
+  BRepGraph_EdgeCurve3DRepId Add(const occ::handle<Geom_Curve>& theCurve,
+                                  double theFirst, double theLast)
+  {
+    std::lock_guard<std::mutex> lock(mutex);
+    uint32_t idx = static_cast<uint32_t>(curves.size());
+    curves.push_back({idx, theCurve, theFirst, theLast});
+    return BRepGraph_EdgeCurve3DRepId(idx);
   }
 };
 
@@ -109,9 +123,11 @@ struct Curve2DRegistry
     double First, Last;
   };
   std::vector<Entry> curves;
+  mutable std::mutex mutex;
 
   ~Curve2DRegistry()
   {
+    std::lock_guard<std::mutex> lock(mutex);
     for (auto& c : curves) {
       c.Curve.Nullify();
     }
@@ -124,20 +140,31 @@ struct Curve2DRegistry
     return s_instance;
   }
 
-  Entry* FindByIndex(uint32_t theIndex)
+  occ::handle<Geom2d_Curve> FindByIndex(uint32_t theIndex) const
   {
-    for (auto& c : curves) {
-      if (c.Index == theIndex) return &c;
+    std::lock_guard<std::mutex> lock(mutex);
+    for (const auto& c : curves) {
+      if (c.Index == theIndex) return c.Curve;
     }
-    return nullptr;
+    return occ::handle<Geom2d_Curve>();
   }
 
   void Remove(uint32_t theIndex)
   {
+    std::lock_guard<std::mutex> lock(mutex);
     curves.erase(
       std::remove_if(curves.begin(), curves.end(),
                      [theIndex](const Entry& e){ return e.Index == theIndex; }),
       curves.end());
+  }
+
+  BRepGraph_CoEdgeCurve2DRepId Add(const occ::handle<Geom2d_Curve>& theCurve,
+                                    double theFirst, double theLast)
+  {
+    std::lock_guard<std::mutex> lock(mutex);
+    uint32_t idx = static_cast<uint32_t>(curves.size());
+    curves.push_back({idx, theCurve, theFirst, theLast});
+    return BRepGraph_CoEdgeCurve2DRepId(idx);
   }
 };
 
@@ -155,10 +182,9 @@ inline BRepGraph_EdgeCurve3DRepId MakeCurve3DRep(BRepGraph& theGraph,
                                                    const double                   theFirst,
                                                    const double                   theLast)
 {
+  (void)theGraph;
   auto& registry = Curve3DRegistryInstance();
-  uint32_t idx = static_cast<uint32_t>(registry.curves.size());
-  registry.curves.push_back({idx, theCurve, theFirst, theLast});
-  return BRepGraph_EdgeCurve3DRepId(idx);
+  return registry.Add(theCurve, theFirst, theLast);
 }
 
 //! Helper: build a degenerate quad face structure (4 vertices, 4 edges, 4 coedges, 1 wire, 1 face).
@@ -215,10 +241,9 @@ inline BRepGraph_EdgeCurve3DRepId CreateCurve3DRep(BRepGraph& theGraph,
 inline BRepGraph_CoEdgeCurve2DRepId CreateCurve2DRep(BRepGraph& theGraph,
                                                         const occ::handle<Geom2d_Curve>& theCurve)
 {
+  (void)theGraph;
   auto& registry = Curve2DRegistryInstance();
-  uint32_t idx = static_cast<uint32_t>(registry.curves.size());
-  registry.curves.push_back({idx, theCurve, theCurve->FirstParameter(), theCurve->LastParameter()});
-  return BRepGraph_CoEdgeCurve2DRepId(idx);
+  return registry.Add(theCurve, theCurve->FirstParameter(), theCurve->LastParameter());
 }
 
 //! Create a new Surface rep and return its identifier.
