@@ -182,7 +182,7 @@ inline occtl_status_t AddResultToGraph(
   const NCollection_DataMap<TopoDS_Shape, BRepGraph_NodeId, TopTools_ShapeMapHasher>& theInputs,
   const occ::handle<BRepTools_History>&                                               theHistory,
   const TCollection_AsciiString&                                                      theOpLabel,
-  const bool theBuildHistory) noexcept
+  const bool theBuildHistory)
 {
   if (theShape.IsNull())
   {
@@ -305,7 +305,7 @@ inline occtl_status_t RunAndCommit(
   occtl_node_id_t* const                                                              theOutRoot,
   const char* const                                                                   theOpLabel,
   const NCollection_DataMap<TopoDS_Shape, BRepGraph_NodeId, TopTools_ShapeMapHasher>& theInputsMap,
-  BRepAlgoAPI_BuilderAlgo& theAlgo) noexcept
+  BRepAlgoAPI_BuilderAlgo& theAlgo)
 {
   *theOutRoot = OCCTL_NODE_ID_INVALID;
   theAlgo.Build();
