@@ -37,7 +37,11 @@
 #include <BRepGraph_ChildExplorer.hxx>
 #include <BRepGraph_RelatedIterator.hxx>
 #include <BRepGraph_ShapesView.hxx>
+#include <TopExp.hxx>
 #include <TopExp_Explorer.hxx>
+#include <TopTools_IndexedDataMapOfShapeListOfShape.hxx>
+#include <TopTools_IndexedMapOfShape.hxx>
+#include <TopTools_ListOfShape.hxx>
 #include <BRepGraph_Tool.hxx>
 #include <BRepGraph_TopoView.hxx>
 #include <BRepTools.hxx>
@@ -1906,6 +1910,129 @@ OCCTL_API occtl_status_t OCCTL_CALL
 OCCTL_API void OCCTL_CALL occtl_topo_related_iter_free(occtl_topo_related_iter_t* const theIter)
 {
   delete theIter;
+}
+
+//==================================================================================================
+
+OCCTL_API occtl_status_t OCCTL_CALL
+  occtl_topo_solid_is_self_intersecting(const occtl_graph_t* const theGraph,
+                                        const occtl_node_id_t      theSolid,
+                                        const double               theMinEdgeLength,
+                                        int32_t* const             theOutResult)
+{
+  return OcctL::Core::Guard([&]() -> occtl_status_t {
+    if (theGraph == nullptr || theOutResult == nullptr)
+    {
+      OcctL::Core::ErrorState::Current().Set(OCCTL_INVALID_ARGUMENT,
+                                             "graph or out_result is NULL");
+      return OCCTL_INVALID_ARGUMENT;
+    }
+    *theOutResult = 0;
+
+    const BRepGraph_NodeId aSolidNodeId = OcctL::Topo::UnpackNodeId(theSolid);
+    if (!aSolidNodeId.IsValid()
+        || theGraph->graph.Topo().Gen().IsRemoved(aSolidNodeId))
+    {
+      OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_FOUND, "solid node is invalid or removed");
+      return OCCTL_NOT_FOUND;
+    }
+    if (aSolidNodeId.NodeKind != BRepGraph_NodeId::Kind::Solid)
+    {
+      OcctL::Core::ErrorState::Current().Set(OCCTL_WRONG_KIND, "node is not a solid");
+      return OCCTL_WRONG_KIND;
+    }
+
+    TopoDS_Shape aSolidShape;
+    if (!resolveShape(theGraph, theSolid, aSolidShape))
+    {
+      OcctL::Core::ErrorState::Current().Set(OCCTL_NOT_FOUND, "solid shape could not be resolved");
+      return OCCTL_NOT_FOUND;
+    }
+
+    // Collect all faces of the solid.
+    TopTools_IndexedMapOfShape aFaceMap;
+    TopExp::MapShapes(aSolidShape, TopAbs_FACE, aFaceMap);
+    const int aNbFaces = aFaceMap.Size();
+    if (aNbFaces < 2)
+    {
+      return OCCTL_OK; // not enough faces to self-intersect
+    }
+
+    // Collect the solid's own boundary edges so shared-edge section results
+    // can be identified and skipped.  When two faces are adjacent, their
+    // section always contains the shared boundary edge; we ignore those to
+    // avoid false positives.  Any ADDITIONAL section edge (not already in the
+    // solid) indicates a genuine intersection.
+    TopTools_IndexedMapOfShape aSolidEdges;
+    TopExp::MapShapes(aSolidShape, TopAbs_EDGE, aSolidEdges);
+
+    // Check ALL face pairs including adjacent ones: they can intersect at
+    // points other than their shared edge (twisted sweep, folded face).
+    for (int aI = 1; aI <= aNbFaces && *theOutResult == 0; ++aI)
+    {
+      for (int aJ = aI + 1; aJ <= aNbFaces && *theOutResult == 0; ++aJ)
+      {
+        const TopoDS_Face& aFaceA = TopoDS::Face(aFaceMap.FindKey(aI));
+        const TopoDS_Face& aFaceB = TopoDS::Face(aFaceMap.FindKey(aJ));
+
+        BRepAlgoAPI_Section aSection(aFaceA, aFaceB, Standard_False);
+        aSection.Approximation(Standard_True);
+        aSection.Build();
+        if (!aSection.IsDone())
+          continue;
+
+        // Walk over section edges; skip existing solid boundary edges (the
+        // shared edge between adjacent faces is always in the section but is
+        // not a self-intersection).  Count only new edges above arc-length threshold.
+        for (TopExp_Explorer anExpl(aSection.Shape(), TopAbs_EDGE); anExpl.More(); anExpl.Next())
+        {
+          const TopoDS_Edge& anEdge = TopoDS::Edge(anExpl.Current());
+          if (BRep_Tool::Degenerated(anEdge))
+            continue;
+
+          // Skip boundary edges already belonging to the solid — they are the
+          // expected shared edges between adjacent faces, not new crossings.
+          if (aSolidEdges.Contains(anEdge))
+            continue;
+
+          // Compute arc-length via adaptive curve discretisation (BRepAdaptor_Curve).
+          BRepAdaptor_Curve aCurve(anEdge);
+          const double aTFirst = aCurve.FirstParameter();
+          const double aTLast  = aCurve.LastParameter();
+          if (aTLast <= aTFirst)
+            continue;
+
+          // Quick chord pre-check: if chord >= minEdgeLength, no need to integrate.
+          const gp_Pnt aPFirst = aCurve.Value(aTFirst);
+          const gp_Pnt aPLast  = aCurve.Value(aTLast);
+          const double aChord  = aPFirst.Distance(aPLast);
+          if (aChord >= theMinEdgeLength)
+          {
+            *theOutResult = 1;
+            break;
+          }
+
+          // Chord is short; compute arc-length via 16-point Gaussian sampling.
+          const int    aNSamples = 16;
+          const double aDt       = (aTLast - aTFirst) / aNSamples;
+          double       aArc      = 0.0;
+          gp_Pnt       aPrev     = aCurve.Value(aTFirst);
+          for (int aK = 1; aK <= aNSamples; ++aK)
+          {
+            const gp_Pnt aCur = aCurve.Value(aTFirst + aK * aDt);
+            aArc += aPrev.Distance(aCur);
+            aPrev = aCur;
+          }
+          if (aArc >= theMinEdgeLength)
+          {
+            *theOutResult = 1;
+          }
+        }
+      }
+    }
+
+    return OCCTL_OK;
+  });
 }
 
 } // extern "C"

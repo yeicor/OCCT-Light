@@ -1079,6 +1079,28 @@ OCCTL_API occtl_status_t OCCTL_CALL occtl_topo_related_iter_next(occtl_topo_rela
  */
 OCCTL_API void OCCTL_CALL occtl_topo_related_iter_free(occtl_topo_related_iter_t* iter);
 
+/**
+ * Tests whether a solid self-intersects: any face pair with a bounded section
+ * edge of arc-length >= min_edge_length is considered an intersection.
+ * Existing solid boundary edges are excluded to avoid false positives from
+ * adjacent-face shared edges.  Returns immediately on the first confirmed hit.
+ *
+ * @param[in]  graph            Must be non-NULL.
+ * @param[in]  solid            Solid node to test.
+ * @param[in]  min_edge_length  Minimum arc-length threshold (0 = count all).
+ * @param[out] out_result       1 when self-intersection detected, 0 otherwise.
+ *
+ * @retval OCCTL_OK                Success.
+ * @retval OCCTL_INVALID_ARGUMENT  graph or out_result is NULL.
+ * @retval OCCTL_NOT_FOUND         solid is invalid or removed.
+ * @retval OCCTL_WRONG_KIND        solid is not a Solid node.
+ */
+OCCTL_API occtl_status_t OCCTL_CALL
+  occtl_topo_solid_is_self_intersecting(const occtl_graph_t* graph,
+                                        occtl_node_id_t      solid,
+                                        double               min_edge_length,
+                                        int32_t*             out_result);
+
 #ifdef __cplusplus
 } /* extern "C" */
 #endif
