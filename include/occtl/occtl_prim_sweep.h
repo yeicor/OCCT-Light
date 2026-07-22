@@ -532,6 +532,9 @@ typedef struct occtl_prim_pipe_shell_info
    {0.0, 0.0, 1.0},                                                                                \
    OCCTL_PIPE_TRANSITION_MODIFIED,                                                                 \
    0,                                                                                              \
+   OCCTL_NODE_ID_INVALID,                                                                          \
+   0,                                                                                              \
+   OCCTL_PIPE_AUX_CONTACT_NONE,                                                                    \
    0,                                                                                              \
    0}
 
